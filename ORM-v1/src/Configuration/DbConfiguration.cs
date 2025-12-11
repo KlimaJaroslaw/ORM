@@ -11,10 +11,10 @@ namespace ORM_v1.Configuration
         public DbConfiguration(string connectionString, IMetadataStore metadataStore)
         {
             ConnectionString = connectionString 
-                ?? throw new ArgumentNullException(nameof(connectionString));
+                               ?? throw new ArgumentNullException(nameof(connectionString));
 
             MetadataStore = metadataStore 
-                ?? throw new ArgumentNullException(nameof(metadataStore));
+                            ?? throw new ArgumentNullException(nameof(metadataStore));
         }
     }
 }
