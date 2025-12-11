@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Data;
 using ORM_v1.Configuration;
 using ORM_v1.Mapping;
@@ -16,6 +17,7 @@ public class DbContext : IDisposable
         private IDbConnection? _connection;
         private bool _disposed;
 
+        private static readonly ConcurrentDictionary<EntityMap, ObjectMaterializer> _materializerCache = new();
         public ChangeTracker ChangeTracker { get; } = new ChangeTracker();
 
         public DbContext(DbConfiguration configuration)
@@ -29,6 +31,11 @@ public class DbContext : IDisposable
         public DbSet<T> Set<T>() where T : class
         {
             return new DbSet<T>(this);
+        }
+        
+        private ObjectMaterializer GetMaterializer(EntityMap map)
+        {
+            return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m));
         }
 
         protected IDbConnection GetConnection()
@@ -61,7 +68,7 @@ public class DbContext : IDisposable
             using var reader = command.ExecuteReader();
             if (reader.Read())
             {
-                var materializer = new ObjectMaterializer(entityMap);
+                var materializer = GetMaterializer(entityMap);
                 int[] ordinals = new int[entityMap.ScalarProperties.Count];
                 for (int i = 0; i < entityMap.ScalarProperties.Count; i++)
                 {
@@ -72,7 +79,6 @@ public class DbContext : IDisposable
 
                 var entity = (T)materializer.Materialize(reader, entityMap, ordinals);
                 
-                // Śledzimy jako Unchanged
                 ChangeTracker.Track(entity, EntityState.Unchanged);
                 return entity;
             }
