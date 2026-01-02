@@ -1,101 +1,86 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using ORM_v1.Configuration;
+using ORM_v1.Mapping;
+using ORM_v1.Query;
 using System.Collections.Concurrent;
 using System.Data;
-using ORM_v1.Configuration;
-using ORM_v1.Mapping;
 
 
 namespace ORM_v1.core;
 
 public class DbContext : IDisposable
+{
+    private readonly DbConfiguration _configuration;
+    private readonly ConnectionFactory _connectionFactory;
+    private readonly ISqlGenerator _sqlGenerator;
+    
+    private IDbConnection? _connection;
+    private bool _disposed;
+
+    private static readonly ConcurrentDictionary<EntityMap, ObjectMaterializer> _materializerCache = new();
+    public ChangeTracker ChangeTracker { get; } = new ChangeTracker();
+
+    public DbContext(DbConfiguration configuration)
     {
-        private readonly DbConfiguration _configuration;
-        private readonly ConnectionFactory _connectionFactory;
-        private readonly ISqlGenerator _sqlGenerator;
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _connectionFactory = new ConnectionFactory(_configuration.ConnectionString);
         
-        private IDbConnection? _connection;
-        private bool _disposed;
+        _sqlGenerator = new SqliteSqlGenerator();
+    }
 
-        private static readonly ConcurrentDictionary<EntityMap, ObjectMaterializer> _materializerCache = new();
-        public ChangeTracker ChangeTracker { get; } = new ChangeTracker();
+    public DbSet<T> Set<T>() where T : class
+    {
+        return new DbSet<T>(this);
+    }
+    
+    private ObjectMaterializer GetMaterializer(EntityMap map)
+    {
+        return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m));
+    }
 
-        public DbContext(DbConfiguration configuration)
+    protected IDbConnection GetConnection()
+    {
+        if (_connection == null)
         {
-            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-            _connectionFactory = new ConnectionFactory(_configuration.ConnectionString);
-            
-            _sqlGenerator = new SqliteSqlGenerator();
+            _connection = _connectionFactory.CreateConnection();
+            if (_connection.State != ConnectionState.Open)
+                _connection.Open();
+        }
+        return _connection;
+    }
+
+    public T? Find<T>(object id) where T : class
+    {
+        // First check the change tracker
+        foreach (var entry in ChangeTracker.Entries)
+        {
+            if (entry.Entity is T entity && entry.State != EntityState.Deleted)
+            {
+                var map = _configuration.MetadataStore.GetMap<T>();
+                var keyVal = map.KeyProperty.PropertyInfo.GetValue(entity);
+                if (keyVal != null && keyVal.Equals(id))
+                    return entity;
+            }
         }
 
-        public DbSet<T> Set<T>() where T : class
-        {
-            return new DbSet<T>(this);
-        }
+        // Generate SQL query using the new interface
+        var entityMap = _configuration.MetadataStore.GetMap<T>();
+        var sqlQuery = _sqlGenerator.GenerateSelect(entityMap, id);
         
-        private ObjectMaterializer GetMaterializer(EntityMap map)
+        // Create and execute command
+        var conn = GetConnection();
+        using var command = conn.CreateCommand();
+        command.CommandText = sqlQuery.Sql;
+        
+        // Add parameters
+        foreach (var param in sqlQuery.Parameters)
         {
-            return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m));
-        }
-
-        protected IDbConnection GetConnection()
-        {
-            if (_connection == null)
-            {
-                _connection = _connectionFactory.CreateConnection();
-                if (_connection.State != ConnectionState.Open)
-                    _connection.Open();
-            }
-            return _connection;
-        }
-
-        public T? Find<T>(object id) where T : class
-        {
-            foreach (var entry in ChangeTracker.Entries)
-            {
-                if (entry.Entity is T entity && entry.State != EntityState.Deleted)
-                {
-                    var map = _configuration.MetadataStore.GetMap<T>();
-                    var keyVal = map.KeyProperty.PropertyInfo.GetValue(entity);
-                    if (keyVal != null && keyVal.Equals(id))
-                        return entity;
-                }
-            }
-
-            var entityMap = _configuration.MetadataStore.GetMap<T>();
-            using var command = _sqlGenerator.GenerateSelect(GetConnection(), entityMap, id);
-            
-            using var reader = command.ExecuteReader();
-            if (reader.Read())
-            {
-                var materializer = GetMaterializer(entityMap);
-                int[] ordinals = new int[entityMap.ScalarProperties.Count];
-                for (int i = 0; i < entityMap.ScalarProperties.Count; i++)
-                {
-                    string colName = entityMap.ScalarProperties[i].ColumnName!;
-                    try { ordinals[i] = reader.GetOrdinal(colName); }
-                    catch { ordinals[i] = -1; }
-                }
-
-                var entity = (T)materializer.Materialize(reader, entityMap, ordinals);
-                
-                ChangeTracker.Track(entity, EntityState.Unchanged);
-                return entity;
-            }
-
-            return null;
+            AddParameter(command, param.Key, param.Value);
         }
         
-        // Metoda pomocnicza dla DbSet.All() - tymczasowa, zanim wejdzie LINQ
-        internal IEnumerable<T> SetInternal<T>() where T : class
+        using var reader = command.ExecuteReader();
+        if (reader.Read())
         {
-            var list = new List<T>();
-            var entityMap = _configuration.MetadataStore.GetMap<T>();
-            using var command = _sqlGenerator.GenerateSelectAll(GetConnection(), entityMap);
-            
-            using var reader = command.ExecuteReader();
-            
-            var materializer = new ObjectMaterializer(entityMap);
+            var materializer = GetMaterializer(entityMap);
             int[] ordinals = new int[entityMap.ScalarProperties.Count];
             for (int i = 0; i < entityMap.ScalarProperties.Count; i++)
             {
@@ -104,86 +89,142 @@ public class DbContext : IDisposable
                 catch { ordinals[i] = -1; }
             }
 
-            while (reader.Read())
-            {
-                var entity = (T)materializer.Materialize(reader, entityMap, ordinals);
-                ChangeTracker.Track(entity, EntityState.Unchanged);
-                list.Add(entity);
-            }
-            return list;
+            var entity = (T)materializer.Materialize(reader, entityMap, ordinals);
+            
+            ChangeTracker.Track(entity, EntityState.Unchanged);
+            return entity;
         }
 
-        public void SaveChanges()
+        return null;
+    }
+    
+    // Metoda pomocnicza dla DbSet.All() - tymczasowa, zanim wejdzie LINQ
+    internal IEnumerable<T> SetInternal<T>() where T : class
+    {
+        var list = new List<T>();
+        var entityMap = _configuration.MetadataStore.GetMap<T>();
+        
+        // Generate SQL query using the new interface
+        var sqlQuery = _sqlGenerator.GenerateSelectAll(entityMap);
+        
+        // Create and execute command
+        var conn = GetConnection();
+        using var command = conn.CreateCommand();
+        command.CommandText = sqlQuery.Sql;
+        
+        // Add parameters (if any)
+        foreach (var param in sqlQuery.Parameters)
         {
-            if (!ChangeTracker.HasChanges()) return;
+            AddParameter(command, param.Key, param.Value);
+        }
+        
+        using var reader = command.ExecuteReader();
+        
+        var materializer = GetMaterializer(entityMap);
+        int[] ordinals = new int[entityMap.ScalarProperties.Count];
+        for (int i = 0; i < entityMap.ScalarProperties.Count; i++)
+        {
+            string colName = entityMap.ScalarProperties[i].ColumnName!;
+            try { ordinals[i] = reader.GetOrdinal(colName); }
+            catch { ordinals[i] = -1; }
+        }
 
-            var conn = GetConnection();
-            using var transaction = conn.BeginTransaction();
+        while (reader.Read())
+        {
+            var entity = (T)materializer.Materialize(reader, entityMap, ordinals);
+            ChangeTracker.Track(entity, EntityState.Unchanged);
+            list.Add(entity);
+        }
+        return list;
+    }
 
-            try
+    public void SaveChanges()
+    {
+        if (!ChangeTracker.HasChanges()) return;
+
+        var conn = GetConnection();
+        using var transaction = conn.BeginTransaction();
+
+        try
+        {
+            foreach (var entry in ChangeTracker.Entries)
             {
-                foreach (var entry in ChangeTracker.Entries)
+                if (entry.State == EntityState.Unchanged || entry.State == EntityState.Detached)
+                    continue;
+
+                var map = _configuration.MetadataStore.GetMap(entry.Entity.GetType());
+                SqlQuery? sqlQuery = null;
+
+                switch (entry.State)
                 {
-                    if (entry.State == EntityState.Unchanged || entry.State == EntityState.Detached)
-                        continue;
-
-                    var map = _configuration.MetadataStore.GetMap(entry.Entity.GetType());
-                    IDbCommand? cmd = null;
-
-                    switch (entry.State)
-                    {
-                        case EntityState.Added:
-                            cmd = _sqlGenerator.GenerateInsert(conn, map, entry.Entity);
-                            break;
-                        case EntityState.Modified:
-                            cmd = _sqlGenerator.GenerateUpdate(conn, map, entry.Entity);
-                            break;
-                        case EntityState.Deleted:
-                            cmd = _sqlGenerator.GenerateDelete(conn, map, entry.Entity);
-                            break;
-                    }
-
-                    if (cmd != null)
-                    {
-                        cmd.Transaction = transaction;
-
-                        if (entry.State == EntityState.Added && map.HasAutoIncrementKey)
-                        {
-                            // Dla Insert z AutoIncrement musimy pobrać ID
-                            // SqliteSqlGenerator dodaje "; SELECT last_insert_rowid();" na końcu
-                            var newId = cmd.ExecuteScalar();
-                            
-                            // Konwersja typu ID (zazwyczaj long w SQLite) na typ w C#
-                            var targetType = map.KeyProperty.PropertyType;
-                            var convertedId = Convert.ChangeType(newId, targetType);
-                            
-                            // Refleksja - ustawienie ID w obiekcie
-                            map.KeyProperty.PropertyInfo.SetValue(entry.Entity, convertedId);
-                        }
-                        else
-                        {
-                            cmd.ExecuteNonQuery();
-                        }
-                    }
+                    case EntityState.Added:
+                        sqlQuery = _sqlGenerator.GenerateInsert(map, entry.Entity);
+                        break;
+                    case EntityState.Modified:
+                        sqlQuery = _sqlGenerator.GenerateUpdate(map, entry.Entity);
+                        break;
+                    case EntityState.Deleted:
+                        sqlQuery = _sqlGenerator.GenerateDelete(map, entry.Entity);
+                        break;
                 }
 
-                transaction.Commit();
-                ChangeTracker.AcceptAllChanges();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw;
-            }
-        }
+                if (sqlQuery != null)
+                {
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = sqlQuery.Sql;
+                    cmd.Transaction = transaction;
+                    
+                    // Add parameters
+                    foreach (var param in sqlQuery.Parameters)
+                    {
+                        AddParameter(cmd, param.Key, param.Value);
+                    }
 
-        public void Dispose()
-        {
-            if (!_disposed)
-            {
-                _connection?.Dispose();
-                _disposed = true;
+                    if (entry.State == EntityState.Added && map.HasAutoIncrementKey)
+                    {
+                        // For Insert with AutoIncrement we need to retrieve the ID
+                        // SqliteSqlGenerator adds "; SELECT last_insert_rowid();" at the end
+                        var newId = cmd.ExecuteScalar();
+                        
+                        // Convert ID type (usually long in SQLite) to C# type
+                        var targetType = map.KeyProperty.PropertyType;
+                        var convertedId = Convert.ChangeType(newId, targetType);
+                        
+                        // Reflection - set ID in the object
+                        map.KeyProperty.PropertyInfo.SetValue(entry.Entity, convertedId);
+                    }
+                    else
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
+                }
             }
-            GC.SuppressFinalize(this);
+
+            transaction.Commit();
+            ChangeTracker.AcceptAllChanges();
+        }
+        catch
+        {
+            transaction.Rollback();
+            throw;
         }
     }
+
+    private void AddParameter(IDbCommand command, string name, object? value)
+    {
+        var param = command.CreateParameter();
+        param.ParameterName = name;
+        param.Value = value ?? DBNull.Value;
+        command.Parameters.Add(param);
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _connection?.Dispose();
+            _disposed = true;
+        }
+        GC.SuppressFinalize(this);
+    }
+}
