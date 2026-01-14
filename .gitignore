@@ -422,3 +422,4 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+/FIX_INVALIDCASTEXCEPTION_INT64_TO_INT32.md

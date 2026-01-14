@@ -26,5 +26,10 @@ namespace ORM_v1.Mapping
             throw new KeyNotFoundException(
                 $"Type '{type.FullName}' is not registered in MetadataStore.");
         }
+
+        public IEnumerable<EntityMap> GetAllMaps()
+        {
+            return _maps.Values;
+        }
     }
 }

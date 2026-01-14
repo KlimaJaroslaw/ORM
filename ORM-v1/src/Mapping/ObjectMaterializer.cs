@@ -56,15 +56,45 @@ namespace ORM_v1.Mapping
                         $"is non-nullable ({prop.PropertyType}).");
                 }
 
-                if (prop.UnderlyingType.IsEnum && value != null)
+                // Convert value to the target property type
+                if (value != null)
                 {
-                    value = Enum.ToObject(prop.UnderlyingType, value);
+                    value = ConvertValue(value, prop);
                 }
 
                 setter(instance, value);
             }
 
             return instance;
+        }
+
+        private static object ConvertValue(object value, PropertyMap prop)
+        {
+            var targetType = prop.UnderlyingType;
+
+            // Handle enum conversion
+            if (targetType.IsEnum)
+            {
+                return Enum.ToObject(targetType, value);
+            }
+
+            // Handle type conversion (e.g., SQLite Int64 to C# Int32)
+            var valueType = value.GetType();
+            if (valueType != targetType)
+            {
+                try
+                {
+                    return Convert.ChangeType(value, targetType);
+                }
+                catch (Exception ex) when (ex is InvalidCastException || ex is FormatException || ex is OverflowException)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot convert value of type '{valueType}' to property '{prop.PropertyInfo.Name}' " +
+                        $"of type '{prop.PropertyType}'. Column: '{prop.ColumnName}', Value: {value}", ex);
+                }
+            }
+
+            return value;
         }
 
         private static Func<object> CreateFactory(Type type)

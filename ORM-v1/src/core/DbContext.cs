@@ -18,6 +18,9 @@ public class DbContext : IDisposable
 
     private static readonly ConcurrentDictionary<EntityMap, ObjectMaterializer> _materializerCache = new();
     public ChangeTracker ChangeTracker { get; } = new ChangeTracker();
+    
+    // Database operations API (similar to EF Core)
+    public DatabaseFacade Database { get; }
 
     public DbContext(DbConfiguration configuration)
     {
@@ -25,6 +28,7 @@ public class DbContext : IDisposable
         _connectionFactory = new ConnectionFactory(_configuration.ConnectionString);
         
         _sqlGenerator = new SqliteSqlGenerator();
+        Database = new DatabaseFacade(this);
     }
 
     public DbSet<T> Set<T>() where T : class
@@ -37,7 +41,7 @@ public class DbContext : IDisposable
         return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m));
     }
 
-    protected IDbConnection GetConnection()
+    protected internal IDbConnection GetConnection()
     {
         if (_connection == null)
         {
@@ -47,6 +51,8 @@ public class DbContext : IDisposable
         }
         return _connection;
     }
+    
+    protected internal DbConfiguration GetConfiguration() => _configuration;
 
     public T? Find<T>(object id) where T : class
     {
@@ -226,5 +232,94 @@ public class DbContext : IDisposable
             _disposed = true;
         }
         GC.SuppressFinalize(this);
+    }
+}
+
+/// <summary>
+/// Database operations facade (similar to EF Core's Database property)
+/// </summary>
+public class DatabaseFacade
+{
+    private readonly DbContext _context;
+
+    internal DatabaseFacade(DbContext context)
+    {
+        _context = context;
+    }
+
+    /// <summary>
+    /// Creates the database schema for all entity types in the model.
+    /// </summary>
+    public void EnsureCreated()
+    {
+        var connection = _context.GetConnection();
+        var metadataStore = _context.GetConfiguration().MetadataStore;
+
+        foreach (var map in metadataStore.GetAllMaps())
+        {
+            CreateTable(connection, map);
+        }
+    }
+
+    /// <summary>
+    /// Deletes all tables from the database.
+    /// </summary>
+    public void EnsureDeleted()
+    {
+        var connection = _context.GetConnection();
+        var metadataStore = _context.GetConfiguration().MetadataStore;
+
+        foreach (var map in metadataStore.GetAllMaps())
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"DROP TABLE IF EXISTS \"{map.TableName}\"";
+            command.ExecuteNonQuery();
+        }
+    }
+
+    private void CreateTable(IDbConnection connection, EntityMap map)
+    {
+        var createTableSql = GenerateCreateTableSql(map);
+        
+        using var command = connection.CreateCommand();
+        command.CommandText = createTableSql;
+        command.ExecuteNonQuery();
+    }
+
+    private string GenerateCreateTableSql(EntityMap map)
+    {
+        var columns = new List<string>();
+
+        foreach (var prop in map.ScalarProperties)
+        {
+            var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+            if (prop == map.KeyProperty)
+            {
+                columnDef += " PRIMARY KEY";
+                if (map.HasAutoIncrementKey)
+                {
+                    columnDef += " AUTOINCREMENT";
+                }
+            }
+
+            columns.Add(columnDef);
+        }
+
+        return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+    }
+
+    private string GetSqliteType(Type type)
+    {
+        type = Nullable.GetUnderlyingType(type) ?? type;
+
+        if (type == typeof(int) || type == typeof(long) || type == typeof(bool) || type.IsEnum)
+            return "INTEGER";
+        if (type == typeof(decimal) || type == typeof(double) || type == typeof(float))
+            return "REAL";
+        if (type == typeof(DateTime))
+            return "TEXT"; // SQLite stores dates as text
+        
+        return "TEXT";
     }
 }
