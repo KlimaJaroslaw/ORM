@@ -23,20 +23,42 @@ namespace ORM_v1.Mapping
 
             var entityTypes = _assembly
                 .GetTypes()
-                .Where(t => IsEntityCandidate(t));
+                .Where(t => IsEntityCandidate(t))
+                .ToList();
 
-            foreach (var type in entityTypes)
+            var sortedEntityTypes = entityTypes.OrderBy(t => GetInheritanceDepth(t));
+
+            foreach (var type in sortedEntityTypes)
             {
-                var entityMap = BuildEntityMap(type, namingStrategy);
+                EntityMap? baseMap = null;
+                if (type.BaseType != null && result.TryGetValue(type.BaseType, out var parentMap))
+                {
+                    baseMap = parentMap;
+                }
+
+                bool hasDerivedTypes = entityTypes.Any(t => t.BaseType == type);
+
+                var entityMap = BuildEntityMap(type, namingStrategy, baseMap, hasDerivedTypes);
                 result[type] = entityMap;
             }
 
             return result;
         }
 
+        private static int GetInheritanceDepth(Type t)
+        {
+            int depth = 0;
+            while (t.BaseType != null)
+            {
+                depth++;
+                t = t.BaseType;
+            }
+            return depth;
+        }
+
         private static bool IsEntityCandidate(Type type)
         {
-            if (!type.IsClass || type.IsAbstract || !type.IsPublic)
+            if (!type.IsClass || !type.IsPublic)
                 return false;
 
             if (type.GetCustomAttribute<IgnoreAttribute>() != null) 
@@ -59,18 +81,79 @@ namespace ORM_v1.Mapping
                     return true;
             }
 
+            if (type.BaseType != null && IsEntityCandidate(type.BaseType))
+                return true;
+
             return false;
         }
 
-
-        private EntityMap BuildEntityMap(Type entityType, INamingStrategy naming)
+        private EntityMap BuildEntityMap(Type entityType, INamingStrategy naming, EntityMap? baseMap, bool hasDerivedTypes)
         {
-            string tableName = ResolveTableName(entityType, naming);
+            InheritanceStrategy strategy = InheritanceStrategy.TablePerHierarchy;
+            var ownTableAttr = entityType.GetCustomAttribute<TableAttribute>();
+
+            if (baseMap != null && ownTableAttr != null)
+            {
+                strategy = InheritanceStrategy.TablePerConcreteClass;
+            }
+
+            string tableName;
+            string? discriminatorColumn = null;
+            string? discriminator = null;
+
+            if (baseMap != null)
+            {
+                if (strategy == InheritanceStrategy.TablePerHierarchy)
+                {
+                    tableName = baseMap.TableName;
+                    discriminatorColumn = baseMap.DiscriminatorColumn;
+                    discriminator = entityType.Name;
+                }
+                else
+                {
+                    tableName = ResolveTableName(entityType, naming);
+                    discriminatorColumn = null; 
+                    discriminator = null;
+                }
+            }
+            else
+            {
+                tableName = ResolveTableName(entityType, naming);
+
+                if (hasDerivedTypes)
+                {
+                    discriminatorColumn = "Discriminator";
+                    discriminator = entityType.Name;
+                }
+                else
+                {
+                    discriminatorColumn = null;
+                    discriminator = null;
+                }
+            }
+
             var properties = BuildPropertyMaps(entityType, naming);
 
-            var keyProperty = ResolveKeyProperty(entityType, properties);
+            PropertyMap keyProperty;
+            if (baseMap != null && strategy == InheritanceStrategy.TablePerHierarchy)
+            {
+                keyProperty = baseMap.KeyProperty;
+            }
+            else
+            {
+                keyProperty = ResolveKeyProperty(entityType, properties);
+            }
 
-            return new EntityMap(entityType, tableName, keyProperty, properties);
+            return new EntityMap(
+                entityType, 
+                tableName, 
+                entityType.IsAbstract,
+                baseMap,
+                strategy,
+                discriminator,
+                discriminatorColumn,
+                keyProperty, 
+                properties);
         }
 
         private static string ResolveTableName(Type type, INamingStrategy naming)
@@ -90,13 +173,11 @@ namespace ORM_v1.Mapping
 
             foreach (var prop in properties)
             {
-                // var map = PropertyMap.FromPropertyInfo(prop, naming);
                 var map = PropertyMap.FromPropertyInfo(
                     prop,
                     naming,
-                    type => IsEntityCandidate(type)
+                    t => IsEntityCandidate(t)
                 );
-
 
                 if (map.IsIgnored)
                     continue;

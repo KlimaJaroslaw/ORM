@@ -10,8 +10,13 @@ namespace ORM_v1.Mapping
     {
         public Type EntityType { get; }
         public string TableName { get; }
+        public bool IsAbstract { get; }
+        public InheritanceStrategy Strategy { get; }
+        public EntityMap? BaseMap { get; }
+        public string? Discriminator { get; }
+        public string? DiscriminatorColumn { get; }
+
         public PropertyMap KeyProperty { get; }
-        
         public IReadOnlyList<PropertyMap> Properties { get; }
         public IReadOnlyList<PropertyMap> ScalarProperties { get; }
         public IReadOnlyList<PropertyMap> NavigationProperties { get; }
@@ -22,6 +27,11 @@ namespace ORM_v1.Mapping
         public EntityMap(
             Type entityType,
             string tableName,
+            bool isAbstract,
+            EntityMap? baseMap,
+            InheritanceStrategy strategy,
+            string? discriminator,
+            string? discriminatorColumn,
             PropertyMap keyProperty,
             IEnumerable<PropertyMap> allProperties)
         {
@@ -31,13 +41,74 @@ namespace ORM_v1.Mapping
                 throw new ArgumentException("Table name cannot be null or whitespace.", nameof(tableName));
 
             TableName = tableName;
+            IsAbstract = isAbstract;
+            BaseMap = baseMap;
+            Strategy = strategy;
+
+            if (Strategy == InheritanceStrategy.TablePerHierarchy)
+            {
+                DiscriminatorColumn = discriminatorColumn ?? baseMap?.DiscriminatorColumn;
+            }
+            else
+            {
+                DiscriminatorColumn = null;
+            }
+
+            if (Strategy == InheritanceStrategy.TablePerConcreteClass)
+            {
+                Discriminator = null;
+            }
+            else
+            {
+                Discriminator = discriminator;
+            }
+
+            if (BaseMap != null && 
+                Strategy == InheritanceStrategy.TablePerHierarchy && 
+                !IsAbstract && 
+                string.IsNullOrWhiteSpace(Discriminator))
+            {
+                Discriminator = entityType.Name;
+            }
+
+            if (BaseMap != null && Strategy == InheritanceStrategy.TablePerHierarchy)
+            {
+                if (!string.Equals(TableName, BaseMap.TableName, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"TPH Error: Entity '{EntityType.Name}' is derived from '{BaseMap.EntityType.Name}' " +
+                        $"but maps to a different table ('{TableName}' vs '{BaseMap.TableName}'). " +
+                        "In Table-Per-Hierarchy, all classes must map to the same table.");
+                }
+            }
+
+            if (Strategy == InheritanceStrategy.TablePerConcreteClass)
+            {
+                if (Strategy == InheritanceStrategy.TablePerConcreteClass)
+                {
+                    if (!string.IsNullOrWhiteSpace(discriminator) || discriminatorColumn != null)
+                    {
+                        throw new InvalidOperationException(
+                            $"TPC Error: Entity '{EntityType.Name}' uses Table-Per-Concrete-Class strategy " +
+                            "and cannot define discriminator or discriminator column.");
+                    }
+                }
+            }
+
             KeyProperty = keyProperty ?? throw new ArgumentNullException(nameof(keyProperty));
 
             var propsList = allProperties.ToList();
             Properties = propsList.AsReadOnly();
 
-            ScalarProperties = propsList.Where(p => !p.IsNavigation && !p.IsIgnored).ToList().AsReadOnly();
-            NavigationProperties = propsList.Where(p => p.IsNavigation && !p.IsIgnored).ToList().AsReadOnly();
+            ScalarProperties = propsList
+                .Where(p => !p.IsNavigation && !p.IsIgnored)
+                .ToList()
+                .AsReadOnly();
+
+            NavigationProperties = propsList
+                .Where(p => p.IsNavigation && !p.IsIgnored)
+                .ToList()
+                .AsReadOnly();
 
             ValidateKey(keyProperty);
 
@@ -53,9 +124,9 @@ namespace ORM_v1.Mapping
             _columnMapping = new ReadOnlyDictionary<string, PropertyMap>(colMap);
 
             var propMap = new Dictionary<string, PropertyMap>(StringComparer.OrdinalIgnoreCase);
-            foreach(var prop in Properties)
+            foreach (var prop in Properties)
             {
-                 if (!propMap.ContainsKey(prop.PropertyInfo.Name))
+                if (!propMap.ContainsKey(prop.PropertyInfo.Name))
                     propMap[prop.PropertyInfo.Name] = prop;
             }
             _propertyMapping = new ReadOnlyDictionary<string, PropertyMap>(propMap);
@@ -75,16 +146,33 @@ namespace ORM_v1.Mapping
             return map;
         }
 
-        private static void ValidateKey(PropertyMap key)
+        public EntityMap RootMap
         {
-            if (key.IsIgnored)
-                 throw new InvalidOperationException($"Property '{key.PropertyInfo.Name}' cannot be marked as [Ignore] and [Key].");
-            if (key.IsNavigation)
-                 throw new InvalidOperationException($"Navigation property '{key.PropertyInfo.Name}' cannot be used as a primary key.");
+            get
+            {
+                var current = this;
+                while (current.BaseMap != null)
+                {
+                    current = current.BaseMap;
+                }
+                return current;
+            }
         }
+
+        public bool IsHierarchyRoot => BaseMap == null;
+
+        public bool UsesDiscriminator => DiscriminatorColumn != null;
 
         public bool HasAutoIncrementKey =>
             KeyProperty.UnderlyingType == typeof(int) ||
             KeyProperty.UnderlyingType == typeof(long);
+
+        private static void ValidateKey(PropertyMap key)
+        {
+            if (key.IsIgnored)
+                throw new InvalidOperationException($"Property '{key.PropertyInfo.Name}' cannot be marked as [Ignore] and [Key].");
+            if (key.IsNavigation)
+                throw new InvalidOperationException($"Navigation property '{key.PropertyInfo.Name}' cannot be used as a primary key.");
+        }
     }
 }

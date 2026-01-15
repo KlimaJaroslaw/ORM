@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Reflection;
 using ORM_v1.Attributes;
 
@@ -7,20 +8,16 @@ namespace ORM_v1.Mapping
     public sealed class PropertyMap
     {
         public PropertyInfo PropertyInfo { get; }
-
         public string? ColumnName { get; }
-
         public bool IsKey { get; }
-
         public bool IsIgnored { get; }
-
         public bool IsNavigation { get; }
+        public bool IsCollection { get; }
+        public Type? TargetType { get; }
+        public string? ForeignKeyName { get; }
 
         public Type PropertyType { get; }
-
         public Type UnderlyingType { get; }
-
-        public string? NavigationPropertyName { get; }
 
         public PropertyMap(
             PropertyInfo propertyInfo,
@@ -28,14 +25,18 @@ namespace ORM_v1.Mapping
             bool isKey,
             bool isIgnored,
             bool isNavigation,
-            string? navigationPropertyName)
+            bool isCollection,
+            Type? targetType,
+            string? foreignKeyName)
         {
             PropertyInfo = propertyInfo ?? throw new ArgumentNullException(nameof(propertyInfo));
             ColumnName = columnName;
             IsKey = isKey;
             IsIgnored = isIgnored;
             IsNavigation = isNavigation;
-            NavigationPropertyName = navigationPropertyName;
+            IsCollection = isCollection;
+            TargetType = targetType;
+            ForeignKeyName = foreignKeyName;
 
             PropertyType = propertyInfo.PropertyType;
             UnderlyingType = Nullable.GetUnderlyingType(PropertyType) ?? PropertyType;
@@ -46,55 +47,55 @@ namespace ORM_v1.Mapping
             INamingStrategy naming,
             Func<Type, bool> isEntityType)
         {
-            if (propertyInfo == null)
-                throw new ArgumentNullException(nameof(propertyInfo));
-            if (naming == null)
-                throw new ArgumentNullException(nameof(naming));
-            if (isEntityType == null)
-                throw new ArgumentNullException(nameof(isEntityType));
+            if (propertyInfo == null) throw new ArgumentNullException(nameof(propertyInfo));
+            if (naming == null) throw new ArgumentNullException(nameof(naming));
+            if (isEntityType == null) throw new ArgumentNullException(nameof(isEntityType));
 
-            if (!propertyInfo.CanRead || !propertyInfo.CanWrite)
+            if (!propertyInfo.CanRead || !propertyInfo.CanWrite || propertyInfo.GetCustomAttribute<IgnoreAttribute>() != null)
             {
-                return new PropertyMap(
-                    propertyInfo,
-                    null,
-                    isKey: false,
-                    isIgnored: true,
-                    isNavigation: false,
-                    navigationPropertyName: null);
+                return CreateIgnored(propertyInfo);
             }
 
-            var ignoreAttr = propertyInfo.GetCustomAttribute<IgnoreAttribute>();
-            if (ignoreAttr != null)
+            Type propType = propertyInfo.PropertyType;
+            Type effectiveType = Nullable.GetUnderlyingType(propType) ?? propType;
+
+            bool isCollection = false;
+            Type? targetType = null;
+            bool isNavigation = false;
+
+            if (effectiveType != typeof(string) && effectiveType != typeof(byte[]))
             {
-                return new PropertyMap(
-                    propertyInfo,
-                    null,
-                    isKey: false,
-                    isIgnored: true,
-                    isNavigation: false,
-                    navigationPropertyName: null);
+                if (effectiveType.IsGenericType && typeof(IEnumerable).IsAssignableFrom(effectiveType))
+                {
+                    var elementType = effectiveType.GetGenericArguments()[0];
+                    if (isEntityType(elementType))
+                    {
+                        isNavigation = true;
+                        isCollection = true;
+                        targetType = elementType;
+                    }
+                }
+                else if (isEntityType(effectiveType))
+                {
+                    isNavigation = true;
+                    isCollection = false;
+                    targetType = effectiveType;
+                }
             }
 
             var fkAttr = propertyInfo.GetCustomAttribute<ForeignKeyAttribute>();
+            var colAttr = propertyInfo.GetCustomAttribute<ColumnAttribute>();
+            bool isKey = propertyInfo.GetCustomAttribute<KeyAttribute>() != null;
 
-            bool isNavigation = IsNavigationProperty(propertyInfo, isEntityType);
-
-            ColumnAttribute? columnAttr = propertyInfo.GetCustomAttribute<ColumnAttribute>();
             string? columnName = null;
-
-            if (isNavigation)
+            if (!isNavigation)
             {
-                columnName = null;
+                columnName = colAttr != null ? colAttr.Name : naming.ConvertName(propertyInfo.Name);
             }
             else
             {
-                columnName = columnAttr != null
-                    ? columnAttr.Name
-                    : naming.ConvertName(propertyInfo.Name);
+                columnName = null;
             }
-
-            bool isKey = propertyInfo.GetCustomAttribute<KeyAttribute>() != null;
 
             return new PropertyMap(
                 propertyInfo,
@@ -102,54 +103,15 @@ namespace ORM_v1.Mapping
                 isKey,
                 isIgnored: false,
                 isNavigation,
-                navigationPropertyName: fkAttr?.NavigationPropertyName
+                isCollection,
+                targetType,
+                foreignKeyName: fkAttr?.NavigationPropertyName
             );
         }
 
-        private static bool IsNavigationProperty(PropertyInfo prop, Func<Type, bool> isEntityType)
+        private static PropertyMap CreateIgnored(PropertyInfo prop)
         {
-            Type type = prop.PropertyType;
-
-            if (type == typeof(string) || type == typeof(byte[]))
-                return false;
-
-            var underlying = Nullable.GetUnderlyingType(type) ?? type;
-
-            if (underlying.IsPrimitive ||
-                underlying.IsEnum ||
-                underlying == typeof(decimal) ||
-                underlying == typeof(Guid) ||
-                underlying == typeof(DateTime) ||
-                underlying == typeof(DateTimeOffset) ||
-                underlying == typeof(TimeSpan))
-            {
-                return false;
-            }
-
-            if (typeof(System.Collections.IEnumerable).IsAssignableFrom(type) &&
-                type != typeof(string))
-            {
-                var elementType = type.IsGenericType ? type.GetGenericArguments()[0] : null;
-
-                if (elementType != null && isEntityType(elementType))
-                    return true;
-            }
-
-            if (isEntityType(type))
-                return true;
-
-            return false;
-        }
-
-        public static PropertyMap FromPropertyInfo(
-            PropertyInfo propertyInfo,
-            INamingStrategy naming)
-        {
-            return FromPropertyInfo(
-                propertyInfo,
-                naming,
-                type => false
-            );
+            return new PropertyMap(prop, null, false, true, false, false, null, null);
         }
     }
 }

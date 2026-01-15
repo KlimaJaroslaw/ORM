@@ -1,6 +1,7 @@
 using ORM_v1.Mapping;
 using ORM.Tests.TestEntities;
 using Xunit;
+using System.Linq;
 
 namespace ORM.Tests.Mapping
 {
@@ -13,12 +14,21 @@ namespace ORM.Tests.Mapping
 
             var props = typeof(UserTestEntity)
                 .GetProperties()
-                .Select(p => PropertyMap.FromPropertyInfo(p, naming))
+                .Select(p => PropertyMap.FromPropertyInfo(p, naming, t => false))
                 .Where(p => !p.IsIgnored);
 
             var key = props.First(p => p.IsKey);
 
-            var map = new EntityMap(typeof(UserTestEntity), "Users", key, props);
+            var map = new EntityMap(
+                entityType: typeof(UserTestEntity), 
+                tableName: "Users", 
+                isAbstract: false,
+                baseMap: null,
+                strategy: InheritanceStrategy.TablePerHierarchy,
+                discriminator: null,
+                discriminatorColumn: null,
+                keyProperty: key, 
+                allProperties: props);
 
             Assert.Equal("Users", map.TableName);
         }
@@ -30,12 +40,21 @@ namespace ORM.Tests.Mapping
 
             var props = typeof(UserTestEntity)
                 .GetProperties()
-                .Select(p => PropertyMap.FromPropertyInfo(p, naming))
+                .Select(p => PropertyMap.FromPropertyInfo(p, naming, t => false))
                 .Where(p => !p.IsIgnored);
 
             var key = props.First(p => p.IsKey);
 
-            var map = new EntityMap(typeof(UserTestEntity), "Users", key, props);
+            var map = new EntityMap(
+                entityType: typeof(UserTestEntity), 
+                tableName: "Users", 
+                isAbstract: false,
+                baseMap: null,
+                strategy: InheritanceStrategy.TablePerHierarchy,
+                discriminator: null,
+                discriminatorColumn: null,
+                keyProperty: key, 
+                allProperties: props);
 
             Assert.Contains(map.ScalarProperties, p => p.ColumnName == "first_name");
         }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq.Expressions;
@@ -7,36 +8,65 @@ namespace ORM_v1.Mapping
 {
     public sealed class ObjectMaterializer
     {
+        private readonly EntityMap _rootMap;
+        private readonly IMetadataStore _metadataStore;
         private readonly Func<object> _factory;
         private readonly Dictionary<PropertyMap, Action<object, object?>> _setters;
 
-        public ObjectMaterializer(EntityMap map)
-        {
-            if (map == null)
-                throw new ArgumentNullException(nameof(map));
+        private readonly ConcurrentDictionary<Type, ObjectMaterializer> _derivedMaterializers = new();
 
-            _factory = CreateFactory(map.EntityType);
+        public ObjectMaterializer(EntityMap map, IMetadataStore metadataStore)
+        {
+            _rootMap = map ?? throw new ArgumentNullException(nameof(map));
+            _metadataStore = metadataStore ?? throw new ArgumentNullException(nameof(metadataStore));
+
+            if (!map.IsAbstract)
+            {
+                _factory = CreateFactory(map.EntityType);
+            }
+            else
+            {
+                _factory = () => throw new InvalidOperationException($"Cannot instantiate abstract class '{map.EntityType.Name}'.");
+            }
+
             _setters = CreateSetters(map);
         }
 
-        public object Materialize(IDataRecord record, EntityMap map, int[] ordinals)
+        public object Materialize(IDataRecord record, int[] ordinals)
         {
-            if (record == null)
-                throw new ArgumentNullException(nameof(record));
-            if (map == null)
-                throw new ArgumentNullException(nameof(map));
-            if (ordinals == null)
-                throw new ArgumentNullException(nameof(ordinals));
-            if (ordinals.Length != map.ScalarProperties.Count)
+            if (record == null) throw new ArgumentNullException(nameof(record));
+            if (ordinals == null) throw new ArgumentNullException(nameof(ordinals));
+
+            if (_rootMap.UsesDiscriminator)
+            {
+                
+                int discriminatorOrdinal = GetDiscriminatorOrdinal(record, _rootMap.DiscriminatorColumn!);
+                
+                if (discriminatorOrdinal >= 0 && !record.IsDBNull(discriminatorOrdinal))
+                {
+                    string discriminatorValue = record.GetString(discriminatorOrdinal);
+
+                    if (!string.Equals(discriminatorValue, _rootMap.Discriminator, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return MaterializeDerived(record, discriminatorValue);
+                    }
+                }
+            }
+
+            if (_rootMap.IsAbstract)
+            {
                 throw new InvalidOperationException(
-                    "Ordinal array length does not match number of scalar properties.");
+                    $"Cannot instantiate abstract class '{_rootMap.EntityType.Name}'. " +
+                    "Discriminator value was missing or did not match any known derived type.");
+            }
 
             var instance = _factory();
-
             int index = 0;
 
-            foreach (var prop in map.ScalarProperties)
+            foreach (var prop in _rootMap.ScalarProperties)
             {
+                if (index >= ordinals.Length) break;
+
                 int ordinal = ordinals[index++];
 
                 if (ordinal < 0)
@@ -56,7 +86,6 @@ namespace ORM_v1.Mapping
                         $"is non-nullable ({prop.PropertyType}).");
                 }
 
-                // Convert value to the target property type
                 if (value != null)
                 {
                     value = ConvertValue(value, prop);
@@ -68,17 +97,70 @@ namespace ORM_v1.Mapping
             return instance;
         }
 
+        private object MaterializeDerived(IDataRecord record, string discriminatorValue)
+        {
+            var derivedMap = _metadataStore.GetEntityMapByDiscriminator(_rootMap.RootMap.EntityType, discriminatorValue);
+            
+            if (derivedMap == null)
+            {
+                 throw new InvalidOperationException(
+                    $"Unknown discriminator value '{discriminatorValue}' for root entity '{_rootMap.EntityType.Name}'.");
+            }
+
+            var materializer = _derivedMaterializers.GetOrAdd(derivedMap.EntityType, _ => 
+                new ObjectMaterializer(derivedMap, _metadataStore));
+
+            var derivedOrdinals = GetOrdinalsForMap(record, derivedMap);
+
+            return materializer.Materialize(record, derivedOrdinals);
+        }
+
+        private static int GetDiscriminatorOrdinal(IDataRecord record, string columnName)
+        {
+            for (int i = 0; i < record.FieldCount; i++)
+            {
+                if (string.Equals(record.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static int[] GetOrdinalsForMap(IDataRecord record, EntityMap map)
+        {
+            var ordinals = new int[map.ScalarProperties.Count];
+            for (int i = 0; i < map.ScalarProperties.Count; i++)
+            {
+                var prop = map.ScalarProperties[i];
+                ordinals[i] = -1;
+                for (int j = 0; j < record.FieldCount; j++)
+                {
+                    if (string.Equals(record.GetName(j), prop.ColumnName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ordinals[i] = j;
+                        break;
+                    }
+                }
+            }
+            return ordinals;
+        }
+
         private static object ConvertValue(object value, PropertyMap prop)
         {
             var targetType = prop.UnderlyingType;
 
-            // Handle enum conversion
             if (targetType.IsEnum)
             {
                 return Enum.ToObject(targetType, value);
             }
 
-            // Handle type conversion (e.g., SQLite Int64 to C# Int32)
+            if (targetType == typeof(Guid))
+            {
+                if (value is string s) return Guid.Parse(s);
+                if (value is byte[] b) return new Guid(b);
+            }
+
             var valueType = value.GetType();
             if (valueType != targetType)
             {

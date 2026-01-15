@@ -8,5 +8,6 @@ namespace ORM_v1.Mapping
         EntityMap GetMap<T>();
         EntityMap GetMap(Type type);
         IEnumerable<EntityMap> GetAllMaps();
+        EntityMap? GetEntityMapByDiscriminator(Type rootType, string discriminator);
     }
 }
