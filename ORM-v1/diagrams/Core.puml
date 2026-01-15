@@ -1,0 +1,62 @@
+@startuml Core Namespace
+
+package "ORM_v1.core" {
+    class DbContext {
+        - MetadataStore _metadataStore
+        - ConnectionFactory _connectionFactory
+        - ISqlGenerator _sqlGenerator
+        - ChangeTracker ChangeTracker
+        + DbContext(connectionString: string, modelAssembly: Assembly, namingStrategy: INamingStrategy)
+        + DbSet<T> Set<T>()
+        + SaveChanges(): int
+        + Find<T>(id: object): T?
+        + SetInternal<T>(): IEnumerable<T>
+    }
+
+    class "DbSet<T>" as DbSet {
+        - DbContext _context
+        - Expression _expression
+        - IQueryProvider _provider
+        + ElementType: Type
+        + Expression: Expression
+        + Provider: IQueryProvider
+        + Add(entity: T): void
+        + Update(entity: T): void
+        + Remove(entity: T): void
+        + Find(id: object): T?
+        + All(): IEnumerable<T>
+        + GetEnumerator(): IEnumerator<T>
+    }
+
+    class ChangeTracker {
+        - Dictionary<object, EntityEntry> _entries
+        + Entries: IEnumerable<EntityEntry>
+        + Track(entity: object, state: EntityState): void
+        + GetEntry(entity: object): EntityEntry?
+        + HasChanges(): bool
+        + AcceptAllChanges(): void
+    }
+
+    class EntityEntry {
+        + Entity: object
+        + State: EntityState
+        + EntityEntry(entity: object, state: EntityState)
+    }
+
+    enum EntityState {
+        Detached
+        Unchanged
+        Added
+        Modified
+        Deleted
+    }
+}
+
+' Internal relationships
+DbContext *-- ChangeTracker
+DbContext ..> "DbSet<T>" : creates
+"DbSet<T>" o-- DbContext
+ChangeTracker *-- EntityEntry
+EntityEntry o-- EntityState
+
+@enduml

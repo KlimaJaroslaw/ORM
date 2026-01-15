@@ -1,0 +1,20 @@
+@startuml SQLImplementation Namespace
+
+package "ORM_v1.SQLImplementation" {
+    class SqliteSqlGenerator {
+        + QuoteIdentifier(name: string): string
+        + GetParameterName(name: string, index: int): string
+        + GenerateSelect(map: EntityMap, id: object): SqlQuery
+        + GenerateSelectAll(map: EntityMap): SqlQuery
+        + GenerateInsert(map: EntityMap, entity: object): SqlQuery
+        + GenerateUpdate(map: EntityMap, entity: object): SqlQuery
+        + GenerateDelete(map: EntityMap, entity: object): SqlQuery
+        + GenerateComplexSelect(map: EntityMap, queryModel: QueryModel): SqlQuery
+        + GenerateMock(map: EntityMap): SqlQuery
+        - BuildSelectQuery(queryModel: QueryModel): string
+        - GetColumnValue(entity: object, prop: PropertyMap): object?
+        - FormatParameterValue(value: object?): object?
+    }
+}
+
+@enduml

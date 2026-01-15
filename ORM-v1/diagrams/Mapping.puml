@@ -1,0 +1,98 @@
+@startuml Mapping Namespace
+
+package "ORM_v1.Mapping" {
+    interface INamingStrategy {
+        + ConvertName(input: string): string
+    }
+
+    class PascalCaseNamingStrategy {
+        + ConvertName(input: string): string
+    }
+
+    class SnakeCaseNamingStrategy {
+        + ConvertName(input: string): string
+    }
+
+    interface IMetadataStore {
+        + GetEntityMap(entityType: Type): EntityMap?
+        + GetEntityMap<T>(): EntityMap?
+        + AllEntityMaps: IEnumerable<EntityMap>
+    }
+
+    class MetadataStore {
+        - IReadOnlyDictionary<Type, EntityMap> _entityMaps
+        + MetadataStore(entityMaps: IReadOnlyDictionary<Type, EntityMap>)
+        + GetEntityMap(entityType: Type): EntityMap?
+        + GetEntityMap<T>(): EntityMap?
+        + AllEntityMaps: IEnumerable<EntityMap>
+    }
+
+    class MetadataStoreBuilder {
+        - Assembly _assembly
+        - INamingStrategy _namingStrategy
+        + MetadataStoreBuilder(assembly: Assembly, namingStrategy: INamingStrategy)
+        + Build(): MetadataStore
+    }
+
+    class ModelBuilder {
+        - Assembly _assembly
+        + ModelBuilder(assembly: Assembly)
+        + BuildModel(namingStrategy: INamingStrategy): IReadOnlyDictionary<Type, EntityMap>
+        - IsEntityCandidate(type: Type): bool
+        - BuildEntityMap(entityType: Type, naming: INamingStrategy): EntityMap
+        - ResolveTableName(type: Type, naming: INamingStrategy): string
+        - BuildPropertyMaps(type: Type, naming: INamingStrategy): List<PropertyMap>
+        - ResolveKeyProperty(type: Type, properties: List<PropertyMap>): PropertyMap
+    }
+
+    class EntityMap {
+        + EntityType: Type
+        + TableName: string
+        + KeyProperty: PropertyMap
+        + Properties: IReadOnlyList<PropertyMap>
+        + ScalarProperties: IReadOnlyList<PropertyMap>
+        + NavigationProperties: IReadOnlyList<PropertyMap>
+        + EntityMap(entityType: Type, tableName: string, keyProperty: PropertyMap, properties: List<PropertyMap>)
+    }
+
+    class PropertyMap {
+        + PropertyInfo: PropertyInfo
+        + PropertyType: Type
+        + UnderlyingType: Type
+        + ColumnName: string
+        + IsKey: bool
+        + IsNullable: bool
+        + IsIgnored: bool
+        + IsForeignKey: bool
+        + IsNavigation: bool
+        + ForeignKeyPropertyName: string?
+        + NavigationPropertyName: string?
+        {static} + FromPropertyInfo(property: PropertyInfo, naming: INamingStrategy, isEntity: Func<Type, bool>): PropertyMap
+    }
+
+    class ObjectMaterializer {
+        - Func<object> _factory
+        - Dictionary<PropertyMap, Action<object, object?>> _setters
+        + ObjectMaterializer(map: EntityMap)
+        + Materialize(record: IDataRecord, map: EntityMap, ordinals: int[]): object
+        - {static} CreateFactory(type: Type): Func<object>
+        - {static} CreateSetters(map: EntityMap): Dictionary<PropertyMap, Action<object, object?>>
+        - {static} ConvertValue(value: object, prop: PropertyMap): object
+    }
+}
+
+' Internal relationships
+MetadataStore ..|> IMetadataStore
+MetadataStore *-- EntityMap
+MetadataStoreBuilder o-- INamingStrategy
+MetadataStoreBuilder ..> MetadataStore : creates
+MetadataStoreBuilder ..> ModelBuilder : uses
+ModelBuilder o-- INamingStrategy
+ModelBuilder ..> EntityMap : creates
+ModelBuilder ..> PropertyMap : creates
+EntityMap *-- PropertyMap
+ObjectMaterializer o-- EntityMap
+PascalCaseNamingStrategy ..|> INamingStrategy
+SnakeCaseNamingStrategy ..|> INamingStrategy
+
+@enduml

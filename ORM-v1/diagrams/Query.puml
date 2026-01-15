@@ -1,0 +1,116 @@
+@startuml Query Namespace
+
+package "ORM_v1.Query" {
+    class SqlQueryBuilder {
+        - StringBuilder _builder
+        + Select(columns: IEnumerable<string>): SqlQueryBuilder
+        + SelectDistinct(columns: IEnumerable<string>): SqlQueryBuilder
+        + From(table: string): SqlQueryBuilder
+        + FromWithAlias(table: string, alias: string?): SqlQueryBuilder
+        + Where(condition: string): SqlQueryBuilder
+        + InnerJoin(table: string, alias: string?, onCondition: string): SqlQueryBuilder
+        + LeftJoin(table: string, alias: string?, onCondition: string): SqlQueryBuilder
+        + RightJoin(table: string, alias: string?, onCondition: string): SqlQueryBuilder
+        + FullOuterJoin(table: string, alias: string?, onCondition: string): SqlQueryBuilder
+        + GroupBy(columns: IEnumerable<string>): SqlQueryBuilder
+        + Having(condition: string): SqlQueryBuilder
+        + OrderBy(orderClauses: IEnumerable<string>): SqlQueryBuilder
+        + Limit(limit: int): SqlQueryBuilder
+        + Offset(offset: int): SqlQueryBuilder
+        + InsertInto(table: string, columns: IEnumerable<string>): SqlQueryBuilder
+        + Values(paramNames: IEnumerable<string>): SqlQueryBuilder
+        + Update(table: string): SqlQueryBuilder
+        + Set(assignments: IEnumerable<string>): SqlQueryBuilder
+        + DeleteFrom(table: string): SqlQueryBuilder
+        + ToString(): string
+    }
+
+    class QueryProvider {
+        - DbContext _context
+        + QueryProvider(context: DbContext)
+        + CreateQuery<TElement>(expression: Expression): IQueryable<TElement>
+        + CreateQuery(expression: Expression): IQueryable
+        + Execute<TResult>(expression: Expression): TResult
+        + Execute(expression: Expression): object
+    }
+
+    class SqlExpressionVisitor {
+        - StringBuilder _sql
+        - List<object?> _parameters
+        + Sql: string
+        + Parameters: IReadOnlyList<object?>
+        # VisitConstant(node: ConstantExpression): Expression
+        # VisitMethodCall(node: MethodCallExpression): Expression
+        # VisitLambda<T>(node: Expression<T>): Expression
+        # VisitBinary(node: BinaryExpression): Expression
+        # VisitMember(node: MemberExpression): Expression
+    }
+
+    class QueryModel {
+        + PrimaryEntity: EntityMap
+        + PrimaryEntityAlias: string?
+        + SelectColumns: List<PropertyMap>
+        + SelectAllColumns: bool
+        + Distinct: bool
+        + Joins: List<JoinClause>
+        + WhereClause: string?
+        + Parameters: Dictionary<string, object>
+        + GroupByColumns: List<PropertyMap>
+        + HavingClause: string?
+        + OrderBy: List<OrderByClause>
+        + Take: int?
+        + Skip: int?
+        + Aggregates: List<AggregateFunction>
+    }
+
+    class JoinClause {
+        + JoinedEntity: EntityMap
+        + LeftProperty: PropertyMap
+        + RightProperty: PropertyMap
+        + JoinType: JoinType
+        + Alias: string?
+    }
+
+    enum JoinType {
+        Inner
+        Left
+        Right
+        Full
+    }
+
+    class OrderByClause {
+        + Property: PropertyMap
+        + Entity: EntityMap?
+        + TableAlias: string?
+        + IsAscending: bool
+    }
+
+    class AggregateFunction {
+        + FunctionType: AggregateFunctionType
+        + Property: PropertyMap?
+        + Alias: string?
+    }
+
+    enum AggregateFunctionType {
+        Count
+        Sum
+        Avg
+        Min
+        Max
+    }
+
+    class SqlQuery {
+        + Sql: string
+        + Parameters: Dictionary<string, object>
+    }
+}
+
+' Internal relationships
+QueryModel *-- JoinClause
+QueryModel *-- OrderByClause
+QueryModel *-- AggregateFunction
+JoinClause o-- JoinType
+AggregateFunction o-- AggregateFunctionType
+SqlExpressionVisitor --|> ExpressionVisitor
+
+@enduml

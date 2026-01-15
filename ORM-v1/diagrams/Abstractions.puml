@@ -1,0 +1,22 @@
+@startuml Abstractions Namespace
+
+package "ORM_v1.Abstractions" {
+    interface ISqlGenerator {
+        + QuoteIdentifier(name: string): string
+        + GetParameterName(name: string, index: int): string
+        + GenerateSelect(map: EntityMap, id: object): SqlQuery
+        + GenerateSelectAll(map: EntityMap): SqlQuery
+        + GenerateInsert(map: EntityMap, entity: object): SqlQuery
+        + GenerateUpdate(map: EntityMap, entity: object): SqlQuery
+        + GenerateDelete(map: EntityMap, entity: object): SqlQuery
+        + GenerateComplexSelect(map: EntityMap, queryModel: QueryModel): SqlQuery
+        + GenerateMock(map: EntityMap): SqlQuery
+    }
+
+    abstract class TableAttribute {
+        + Name: string
+        # TableAttribute(name: string)
+    }
+}
+
+@enduml

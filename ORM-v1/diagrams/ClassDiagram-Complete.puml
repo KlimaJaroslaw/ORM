@@ -1,0 +1,49 @@
+@startuml ORM-v1 Complete Class Diagram
+
+' Import all namespace diagrams
+!include Core.puml
+!include Configuration.puml
+!include Mapping.puml
+!include Query.puml
+!include Abstractions.puml
+!include Attributes.puml
+!include SQLImplementation.puml
+
+' ===== CROSS-NAMESPACE RELATIONSHIPS =====
+
+' Core <-> Mapping
+DbContext o-- ORM_v1.Mapping.MetadataStore
+DbContext o-- ORM_v1.Configuration.ConnectionFactory
+DbContext o-- ORM_v1.Abstractions.ISqlGenerator
+"DbSet<T>" o-- ORM_v1.Query.IQueryProvider
+
+' Core <-> Query
+ORM_v1.Query.QueryProvider o-- DbContext
+"DbSet<T>" ..|> IQueryable
+
+' Configuration <-> Mapping
+ORM_v1.Configuration.DbConfiguration o-- ORM_v1.Mapping.INamingStrategy
+
+' Query <-> Mapping
+ORM_v1.Query.QueryModel o-- ORM_v1.Mapping.EntityMap
+ORM_v1.Query.JoinClause o-- ORM_v1.Mapping.EntityMap
+ORM_v1.Query.JoinClause o-- ORM_v1.Mapping.PropertyMap
+ORM_v1.Query.OrderByClause o-- ORM_v1.Mapping.PropertyMap
+ORM_v1.Query.OrderByClause o-- ORM_v1.Mapping.EntityMap
+ORM_v1.Query.AggregateFunction o-- ORM_v1.Mapping.PropertyMap
+
+' Attributes <-> Abstractions
+ORM_v1.Attributes.TableAttribute_Concrete --|> ORM_v1.Abstractions.TableAttribute
+
+' SQLImplementation <-> Abstractions
+ORM_v1.SQLImplementation.SqliteSqlGenerator ..|> ORM_v1.Abstractions.ISqlGenerator
+
+' SQLImplementation <-> Query
+ORM_v1.SQLImplementation.SqliteSqlGenerator ..> ORM_v1.Query.SqlQueryBuilder : uses
+ORM_v1.SQLImplementation.SqliteSqlGenerator ..> ORM_v1.Query.QueryModel : uses
+
+' SQLImplementation <-> Mapping
+ORM_v1.SQLImplementation.SqliteSqlGenerator ..> ORM_v1.Mapping.EntityMap : uses
+ORM_v1.SQLImplementation.SqliteSqlGenerator ..> ORM_v1.Mapping.PropertyMap : uses
+
+@enduml

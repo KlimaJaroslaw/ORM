@@ -1,0 +1,25 @@
+@startuml Attributes Namespace
+
+package "ORM_v1.Attributes" {
+    class TableAttribute_Concrete <<sealed>> {
+        + TableAttribute(name: string)
+    }
+
+    class ColumnAttribute <<sealed>> {
+        + Name: string
+        + ColumnAttribute(name: string)
+    }
+
+    class KeyAttribute <<sealed>> {
+    }
+
+    class ForeignKeyAttribute <<sealed>> {
+        + NavigationPropertyName: string
+        + ForeignKeyAttribute(navigationPropertyName: string)
+    }
+
+    class IgnoreAttribute <<sealed>> {
+    }
+}
+
+@enduml

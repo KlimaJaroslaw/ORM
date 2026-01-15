@@ -1,0 +1,17 @@
+@startuml Configuration Namespace
+
+package "ORM_v1.Configuration" {
+    class DbConfiguration {
+        + ConnectionString: string
+        + NamingStrategy: INamingStrategy
+        + DbConfiguration(connectionString: string, namingStrategy: INamingStrategy)
+    }
+
+    class ConnectionFactory {
+        - string _connectionString
+        + ConnectionFactory(connectionString: string)
+        + CreateConnection(): IDbConnection
+    }
+}
+
+@enduml
