@@ -90,7 +90,7 @@ namespace ORM_v1.Mapping
         private EntityMap BuildEntityMap(Type entityType, INamingStrategy naming, EntityMap? baseMap, bool hasDerivedTypes)
         {
             InheritanceStrategy strategy = InheritanceStrategy.TablePerHierarchy;
-            var ownTableAttr = entityType.GetCustomAttribute<TableAttribute>();
+            var ownTableAttr = entityType.GetCustomAttribute<TableAttribute>(inherit: false);
 
             if (baseMap != null && ownTableAttr != null)
             {

@@ -7,8 +7,8 @@ using ORM_v1.Attributes;
 namespace ORM.Tests.Scenarios
 {
     /// <summary>
-    /// Test weryfikuj¹cy konwersjê typów podczas materializacji obiektów.
-    /// Szczególnie wa¿ne dla SQLite, które zwraca Int64 zamiast Int32.
+    /// Test weryfikujï¿½cy konwersjï¿½ typï¿½w podczas materializacji obiektï¿½w.
+    /// Szczegï¿½lnie waï¿½ne dla SQLite, ktï¿½re zwraca Int64 zamiast Int32.
     /// </summary>
     public class TypeConversionMaterializationTests
     {
@@ -28,7 +28,7 @@ namespace ORM.Tests.Scenarios
                 { "LastName", "Doe" }
             });
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
 
@@ -38,7 +38,7 @@ namespace ORM.Tests.Scenarios
             }
 
             // Act
-            var entity = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+            var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
 
             // Assert
             Assert.Equal(42, entity.Id);  // Int32
@@ -54,7 +54,7 @@ namespace ORM.Tests.Scenarios
             var maps = builder.BuildModel(new PascalCaseNamingStrategy());
             var map = maps[typeof(UserTestEntity)];
 
-            // Test z ró¿nymi wartoœciami numerycznymi
+            // Test z rï¿½nymi wartoï¿½ciami numerycznymi
             var testCases = new[]
             {
                 42L,      // Int64
@@ -71,7 +71,7 @@ namespace ORM.Tests.Scenarios
                     { "LastName", "User" }
                 });
 
-                var materializer = new ObjectMaterializer(map);
+                var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
                 int[] ordinals = new int[map.ScalarProperties.Count];
                 int i = 0;
 
@@ -81,7 +81,7 @@ namespace ORM.Tests.Scenarios
                 }
 
                 // Act
-                var entity = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+                var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
 
                 // Assert
                 Assert.Equal((int)idValue, entity.Id);
@@ -96,15 +96,15 @@ namespace ORM.Tests.Scenarios
             var maps = builder.BuildModel(new PascalCaseNamingStrategy());
             var map = maps[typeof(UserTestEntity)];
 
-            // Próbujemy wstawiæ string do int
+            // Prï¿½bujemy wstawiï¿½ string do int
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
-                { "Id", "not a number" },  // String -> Int32 (b³¹d!)
+                { "Id", "not a number" },  // String -> Int32 (bï¿½ï¿½d!)
                 { "first_name", "John" },
                 { "LastName", "Doe" }
             });
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
 
@@ -116,7 +116,7 @@ namespace ORM.Tests.Scenarios
             // Act & Assert
             var ex = Assert.Throws<InvalidOperationException>(() =>
             {
-                materializer.Materialize(record, map, ordinals);
+                materializer.Materialize(record, ordinals);
             });
 
             Assert.Contains("Cannot convert", ex.Message);
@@ -140,7 +140,7 @@ namespace ORM.Tests.Scenarios
                 { "OptionalRole", 0L }
             });
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
 
@@ -150,7 +150,7 @@ namespace ORM.Tests.Scenarios
             }
 
             // Act
-            var entity = (UserWithEnums)materializer.Materialize(record, map, ordinals);
+            var entity = (UserWithEnums)materializer.Materialize(record, ordinals);
 
             // Assert
             Assert.Equal(1, entity.Id);

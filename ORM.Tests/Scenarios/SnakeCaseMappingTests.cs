@@ -32,7 +32,7 @@ namespace ORM.Tests.Scenarios
             var maps = builder.BuildModel(naming);
             var map = maps[typeof(UserTestEntity)];
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
 
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
@@ -51,7 +51,7 @@ namespace ORM.Tests.Scenarios
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            var entity = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+            var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
 
 
             Assert.Equal(7, entity.Id);

@@ -38,7 +38,7 @@ public class DbContext : IDisposable
     
     private ObjectMaterializer GetMaterializer(EntityMap map)
     {
-        return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m));
+        return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m, _configuration.MetadataStore));
     }
 
     protected internal IDbConnection GetConnection()
@@ -95,7 +95,7 @@ public class DbContext : IDisposable
                 catch { ordinals[i] = -1; }
             }
 
-            var entity = (T)materializer.Materialize(reader, entityMap, ordinals);
+            var entity = (T)materializer.Materialize(reader, ordinals);
             
             ChangeTracker.Track(entity, EntityState.Unchanged);
             return entity;
@@ -137,7 +137,7 @@ public class DbContext : IDisposable
 
         while (reader.Read())
         {
-            var entity = (T)materializer.Materialize(reader, entityMap, ordinals);
+            var entity = (T)materializer.Materialize(reader, ordinals);
             ChangeTracker.Track(entity, EntityState.Unchanged);
             list.Add(entity);
         }

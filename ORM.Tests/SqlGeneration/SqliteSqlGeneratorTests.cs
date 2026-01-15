@@ -43,14 +43,29 @@ namespace ORM.Tests.SqlGeneration
                     isKey,
                     isIgnored: false,
                     isNavigation: false,
-                    navigationPropertyName: null
+                    isCollection: false,
+                    targetType: null,
+                    foreignKeyName: null
+                    // navigationPropertyName: null
                 );
 
                 props.Add(prop);
                 if (isKey) keyProp = prop;
             }
 
-            var map = new EntityMap(type, tableName, keyProp!, props);
+            // var map = new EntityMap(type, tableName, keyProp!, props);
+
+            var map = new EntityMap(
+                type,
+                tableName,
+                isAbstract: false,
+                baseMap: null,
+                strategy: InheritanceStrategy.TablePerHierarchy,
+                discriminator: null,
+                discriminatorColumn: null,
+                keyProperty: keyProp!,
+                allProperties: props
+            );
 
             if (hasAutoIncrement)
             {

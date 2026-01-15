@@ -17,7 +17,7 @@ namespace ORM.Tests.Scenarios
             var maps = builder.BuildModel(naming);
             var map = maps[typeof(UserWithEnums)];
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
 
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
@@ -36,7 +36,7 @@ namespace ORM.Tests.Scenarios
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            var entity = (UserWithEnums)materializer.Materialize(record, map, ordinals);
+            var entity = (UserWithEnums)materializer.Materialize(record, ordinals);
 
 
             Assert.Equal(Role.Admin, entity.Role);

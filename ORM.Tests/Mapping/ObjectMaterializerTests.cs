@@ -16,7 +16,7 @@ namespace ORM.Tests.Mapping
             var maps = builder.BuildModel(naming);
             var map = maps[typeof(UserTestEntity)];
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
 
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
@@ -35,7 +35,7 @@ namespace ORM.Tests.Mapping
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            var obj = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+            var obj = (UserTestEntity)materializer.Materialize(record, ordinals);
 
 
             Assert.Equal(5, obj.Id);
