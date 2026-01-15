@@ -6,7 +6,7 @@ using TestApp.Models;
 namespace TestApp.Scenarios;
 
 /// <summary>
-/// Demonstracja œledzenia zmian encji (Change Tracker)
+/// Demonstracja ï¿½ledzenia zmian encji (Change Tracker)
 /// </summary>
 public static class ChangeTrackingDemo
 {
@@ -24,15 +24,15 @@ public static class ChangeTrackingDemo
 
         using (var context = new AppDbContext(configuration))
         {
-            // Przygotowanie bazy - PRZEZ ORM!
+            // Przygotowanie bazy
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
-            Console.WriteLine("1. Stan pocz¹tkowy Change Trackera:");
+            Console.WriteLine("1. Stan poczï¿½tkowy Change Trackera:");
             PrintChangeTrackerState(context);
 
             // Dodanie nowych encji
-            Console.WriteLine("\n2. Dodawanie nowych klientów:");
+            Console.WriteLine("\n2. Dodawanie nowych klientï¿½w:");
             var customer1 = new Customer
             {
                 FirstName = "Adam",
@@ -80,7 +80,7 @@ public static class ChangeTrackingDemo
             Console.WriteLine("\n4. Usuwanie klienta:");
             context.Customers.Remove(customer2);
 
-            Console.WriteLine("   Stan po oznaczeniu do usuniêcia (przed SaveChanges):");
+            Console.WriteLine("   Stan po oznaczeniu do usuniï¿½cia (przed SaveChanges):");
             PrintChangeTrackerState(context);
 
             context.SaveChanges();
@@ -88,23 +88,23 @@ public static class ChangeTrackingDemo
             Console.WriteLine("\n   Stan po SaveChanges:");
             PrintChangeTrackerState(context);
 
-            // Wyszukiwanie i œledzenie
-            Console.WriteLine("\n5. Wyszukiwanie i automatyczne œledzenie:");
+            // Wyszukiwanie i ï¿½ledzenie
+            Console.WriteLine("\n5. Wyszukiwanie i automatyczne ï¿½ledzenie:");
             var foundCustomer = context.Customers.Find(customer1.Id);
             
             Console.WriteLine($"   Znaleziono: {foundCustomer?.FullName}");
             Console.WriteLine("   Stan Change Trackera:");
             PrintChangeTrackerState(context);
 
-            // Pobieranie wszystkich i œledzenie
-            Console.WriteLine("\n6. Pobieranie wszystkich rekordów:");
+            // Pobieranie wszystkich i sledzenie
+            Console.WriteLine("\n6. Pobieranie wszystkich rekordï¿½w:");
             var allCustomers = context.Customers.All().ToList();
-            Console.WriteLine($"   Pobrano: {allCustomers.Count} klientów");
+            Console.WriteLine($"   Pobrano: {allCustomers.Count} klientï¿½w");
             Console.WriteLine("   Stan Change Trackera:");
             PrintChangeTrackerState(context);
         }
 
-        Console.WriteLine("\n=== Change Tracker Demo zakoñczone ===");
+        Console.WriteLine("\n=== Change Tracker Demo zakoï¿½czone ===");
     }
 
     private static void PrintChangeTrackerState(AppDbContext context)

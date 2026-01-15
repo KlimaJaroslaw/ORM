@@ -6,7 +6,7 @@ using TestApp.Models;
 namespace TestApp.Scenarios;
 
 /// <summary>
-/// Demonstracja transakcji i obs³ugi b³êdów w SaveChanges
+/// Demonstracja transakcji i obsï¿½ugi bï¿½ï¿½dï¿½w w SaveChanges
 /// </summary>
 public static class TransactionDemo
 {
@@ -24,11 +24,11 @@ public static class TransactionDemo
 
         using (var context = new AppDbContext(configuration))
         {
-            // Przygotowanie bazy - PRZEZ ORM!
+            // Przygotowanie bazy
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
-            Console.WriteLine("1. Pomyœlna transakcja - wiele operacji atomowo:");
+            Console.WriteLine("1. Pomyï¿½lna transakcja - wiele operacji atomowo:");
             
             var category = new Category
             {
@@ -51,7 +51,7 @@ public static class TransactionDemo
             }
 
             Console.WriteLine("   Przed SaveChanges:");
-            Console.WriteLine($"   - Œledzonych encji: {context.ChangeTracker.Entries.Count()}");
+            Console.WriteLine($"   - ï¿½ledzonych encji: {context.ChangeTracker.Entries.Count()}");
             Console.WriteLine($"   - Do dodania: {context.ChangeTracker.Entries.Count(e => e.State == EntityState.Added)}");
 
             context.SaveChanges();
@@ -63,7 +63,7 @@ public static class TransactionDemo
                 Console.WriteLine($"   - Produkt '{p.Name}' dodany z ID: {p.Id}");
             }
 
-            Console.WriteLine("\n2. Wiele operacji ró¿nego typu w jednej transakcji:");
+            Console.WriteLine("\n2. Wiele operacji rï¿½nego typu w jednej transakcji:");
             
             // Dodanie
             var newProduct = new Product 
@@ -79,13 +79,13 @@ public static class TransactionDemo
             products[0].Price = 2800m;
             context.Products.Update(products[0]);
 
-            // Usuniêcie
+            // Usuniecie
             context.Products.Remove(products[2]);
 
             Console.WriteLine("   Operacje w kolejce:");
             Console.WriteLine($"   - Dodanie: {context.ChangeTracker.Entries.Count(e => e.State == EntityState.Added)}");
             Console.WriteLine($"   - Modyfikacja: {context.ChangeTracker.Entries.Count(e => e.State == EntityState.Modified)}");
-            Console.WriteLine($"   - Usuniêcie: {context.ChangeTracker.Entries.Count(e => e.State == EntityState.Deleted)}");
+            Console.WriteLine($"   - Usuniï¿½cie: {context.ChangeTracker.Entries.Count(e => e.State == EntityState.Deleted)}");
 
             context.SaveChanges();
 
@@ -102,7 +102,7 @@ public static class TransactionDemo
             Console.WriteLine("\n3. Brak zmian - SaveChanges bez efektu:");
             var productNoChange = context.Products.Find(1);
             Console.WriteLine($"   Pobrany produkt: {productNoChange?.Name}");
-            Console.WriteLine($"   Czy s¹ zmiany: {context.ChangeTracker.HasChanges()}");
+            Console.WriteLine($"   Czy sï¿½ zmiany: {context.ChangeTracker.HasChanges()}");
             
             context.SaveChanges();
             Console.WriteLine("   ? SaveChanges wykonane, ale bez operacji (brak zmian)");
@@ -140,10 +140,10 @@ public static class TransactionDemo
             context.SaveChanges();
             Console.WriteLine($"   ? Trzeci SaveChanges - dodano klienta ID: {customer2.Id}");
 
-            Console.WriteLine("\n5. Demonstracja rollback (symulacja b³êdu):");
-            Console.WriteLine("   ORM automatycznie wykonuje rollback w przypadku b³êdu");
-            Console.WriteLine("   Jeœli jedna operacja w SaveChanges siê nie powiedzie,");
-            Console.WriteLine("   wszystkie operacje s¹ wycofywane (transakcja atomowa)");
+            Console.WriteLine("\n5. Demonstracja rollback (symulacja bï¿½ï¿½du):");
+            Console.WriteLine("   ORM automatycznie wykonuje rollback w przypadku bï¿½ï¿½du");
+            Console.WriteLine("   Jeï¿½li jedna operacja w SaveChanges siï¿½ nie powiedzie,");
+            Console.WriteLine("   wszystkie operacje sï¿½ wycofywane (transakcja atomowa)");
 
             Console.WriteLine("\n6. Podsumowanie transakcji:");
             Console.WriteLine($"   - Kategorie: {context.Categories.All().Count()}");
@@ -152,6 +152,6 @@ public static class TransactionDemo
             Console.WriteLine("\n   Wszystkie operacje wykonane w kontrolowanych transakcjach");
         }
 
-        Console.WriteLine("\n=== Transaction Demo zakoñczone ===");
+        Console.WriteLine("\n=== Transaction Demo zakoï¿½czone ===");
     }
 }

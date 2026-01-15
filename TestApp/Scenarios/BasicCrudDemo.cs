@@ -24,12 +24,12 @@ public static class BasicCrudDemo
 
         using (var context = new AppDbContext(configuration))
         {
-            // Przygotowanie bazy - PRZEZ ORM!
+            // Przygotowanie bazy
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
             // CREATE - Dodawanie nowych encji
-            Console.WriteLine("1. CREATE - Dodawanie nowych produktów:");
+            Console.WriteLine("1. CREATE - Dodawanie nowych produktï¿½w:");
             var laptop = new Product
             {
                 Name = "Laptop HP",
@@ -85,19 +85,19 @@ public static class BasicCrudDemo
                 Console.WriteLine($"   Usuwanie: {productToDelete.Name}");
                 context.Products.Remove(productToDelete);
                 context.SaveChanges();
-                Console.WriteLine($"   ? Produkt usuniêty\n");
+                Console.WriteLine($"   ? Produkt usuniï¿½ty\n");
             }
 
             // Weryfikacja
             Console.WriteLine("5. Weryfikacja stanu bazy:");
             var allProducts = context.Products.All().ToList();
-            Console.WriteLine($"   Liczba produktów: {allProducts.Count}");
+            Console.WriteLine($"   Liczba produktow: {allProducts.Count}");
             foreach (var p in allProducts)
             {
                 Console.WriteLine($"   - {p.Name} (ID: {p.Id})");
             }
         }
 
-        Console.WriteLine("\n=== CRUD Demo zakoñczone ===");
+        Console.WriteLine("\n=== CRUD Demo zakoï¿½czone ===");
     }
 }

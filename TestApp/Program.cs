@@ -87,10 +87,10 @@ class Program
 
         using (var context = new AppDbContext(configuration))
         {
-            // 2. Tworzenie schematu bazy danych - PRZEZ ORM!
+            // 2. Tworzenie schematu bazy danych
             Console.WriteLine("┌─ 1. TWORZENIE SCHEMATU BAZY DANYCH ───────────────────┐");
-            context.Database.EnsureDeleted();  // Czyścimy starą bazę
-            context.Database.EnsureCreated();  // Tworzymy nową
+            context.Database.EnsureDeleted();
+            context.Database.EnsureCreated();
             Console.WriteLine("│ ✓ Schemat utworzony (4 tabele)                        │");
             Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
 

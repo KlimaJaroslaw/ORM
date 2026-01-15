@@ -6,13 +6,13 @@ using TestApp.Models;
 namespace TestApp.Scenarios;
 
 /// <summary>
-/// Demonstracja pracy z ró¿nymi typami danych: Enum, DateTime, Decimal
+/// Demonstracja pracy z rï¿½nymi typami danych: Enum, DateTime, Decimal
 /// </summary>
 public static class DataTypesDemo
 {
     public static void Run()
     {
-        Console.WriteLine("\n=== DEMONSTRACJA TYPÓW DANYCH ===\n");
+        Console.WriteLine("\n=== DEMONSTRACJA TYPï¿½W DANYCH ===\n");
 
         var connectionString = "Data Source=datatypes_demo.db;";
         var metadataStore = new MetadataStoreBuilder()
@@ -24,7 +24,7 @@ public static class DataTypesDemo
 
         using (var context = new AppDbContext(configuration))
         {
-            // Przygotowanie bazy - PRZEZ ORM!
+            // Przygotowanie bazy
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
@@ -50,7 +50,7 @@ public static class DataTypesDemo
                 new Customer
                 {
                     FirstName = "Piotr",
-                    LastName = "Wiœniewski",
+                    LastName = "Wiï¿½niewski",
                     Email = "piotr@example.com",
                     RegistrationDate = DateTime.Now.AddYears(-1),
                     Status = CustomerStatus.Premium
@@ -63,7 +63,7 @@ public static class DataTypesDemo
             }
             context.SaveChanges();
 
-            Console.WriteLine("   Statusy klientów:");
+            Console.WriteLine("   Statusy klientï¿½w:");
             foreach (var customer in customers)
             {
                 Console.WriteLine($"   - {customer.FullName}: {customer.Status} ({(int)customer.Status})");
@@ -77,7 +77,7 @@ public static class DataTypesDemo
                 Console.WriteLine($"   - {customer.FullName}: zarejestrowany {daysSinceRegistration} dni temu");
             }
 
-            Console.WriteLine("\n3. Praca z typem DECIMAL (ceny produktów):");
+            Console.WriteLine("\n3. Praca z typem DECIMAL (ceny produktï¿½w):");
             var products = new[]
             {
                 new Product { Name = "Produkt A", Price = 99.99m, Stock = 10, CategoryId = 1 },
@@ -99,11 +99,11 @@ public static class DataTypesDemo
             {
                 var stockValue = product.Price * product.Stock;
                 totalValue += stockValue;
-                Console.WriteLine($"   - {product.Name}: {product.Price:C} × {product.Stock} = {stockValue:C}");
+                Console.WriteLine($"   - {product.Name}: {product.Price:C} ï¿½ {product.Stock} = {stockValue:C}");
             }
-            Console.WriteLine($"   £¹czna wartoœæ magazynu: {totalValue:C}");
+            Console.WriteLine($"   ï¿½ï¿½czna wartoï¿½ï¿½ magazynu: {totalValue:C}");
 
-            Console.WriteLine("\n4. Aktualizacja ró¿nych typów danych:");
+            Console.WriteLine("\n4. Aktualizacja rï¿½nych typï¿½w danych:");
             var customerToUpdate = context.Customers.Find(1);
             if (customerToUpdate != null)
             {
@@ -122,7 +122,7 @@ public static class DataTypesDemo
                 Console.WriteLine($"   - Data rejestracji: {updated?.RegistrationDate:yyyy-MM-dd HH:mm:ss}");
             }
 
-            Console.WriteLine("\n5. Filtrowanie po typach (rêczne):");
+            Console.WriteLine("\n5. Filtrowanie po typach (rï¿½czne):");
             var premiumCustomers = context.Customers.All()
                 .Where(c => c.Status == CustomerStatus.Premium)
                 .ToList();
@@ -135,13 +135,13 @@ public static class DataTypesDemo
             var expensiveProducts = context.Products.All()
                 .Where(p => p.Price > 1000m)
                 .ToList();
-            Console.WriteLine($"\n   Produkty dro¿sze ni¿ 1000 PLN: {expensiveProducts.Count}");
+            Console.WriteLine($"\n   Produkty droï¿½sze niï¿½ 1000 PLN: {expensiveProducts.Count}");
             foreach (var p in expensiveProducts)
             {
                 Console.WriteLine($"   - {p.Name}: {p.Price:C}");
             }
         }
 
-        Console.WriteLine("\n=== Data Types Demo zakoñczone ===");
+        Console.WriteLine("\n=== Data Types Demo zakoï¿½czone ===");
     }
 }

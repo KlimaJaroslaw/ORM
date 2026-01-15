@@ -6,13 +6,13 @@ using TestApp.Models;
 namespace TestApp.Scenarios;
 
 /// <summary>
-/// Demonstracja atrybutów mapowania: [Table], [Column], [Key], [Ignore]
+/// Demonstracja atrybutï¿½w mapowania: [Table], [Column], [Key], [Ignore]
 /// </summary>
 public static class AttributeMappingDemo
 {
     public static void Run()
     {
-        Console.WriteLine("\n=== DEMONSTRACJA ATRYBUTÓW MAPOWANIA ===\n");
+        Console.WriteLine("\n=== DEMONSTRACJA ATRYBUTï¿½W MAPOWANIA ===\n");
 
         var connectionString = "Data Source=mapping_demo.db;";
         var metadataStore = new MetadataStoreBuilder()
@@ -24,7 +24,7 @@ public static class AttributeMappingDemo
 
         using (var context = new AppDbContext(configuration))
         {
-            // Przygotowanie bazy - PRZEZ ORM!
+            // Przygotowanie bazy
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
@@ -35,16 +35,16 @@ public static class AttributeMappingDemo
 
             Console.WriteLine("\n2. Atrybut [Column] - mapowanie nazw kolumn:");
             Console.WriteLine("   Product:");
-            Console.WriteLine("   - W³aœciwoœæ 'Name' -> Kolumna 'product_name'");
-            Console.WriteLine("   - W³aœciwoœæ 'CategoryId' -> Kolumna 'category_id'");
+            Console.WriteLine("   - Wï¿½aï¿½ciwoï¿½ï¿½ 'Name' -> Kolumna 'product_name'");
+            Console.WriteLine("   - Wï¿½aï¿½ciwoï¿½ï¿½ 'CategoryId' -> Kolumna 'category_id'");
             
             Console.WriteLine("\n   Customer:");
-            Console.WriteLine("   - W³aœciwoœæ 'FirstName' -> Kolumna 'first_name'");
-            Console.WriteLine("   - W³aœciwoœæ 'LastName' -> Kolumna 'last_name'");
-            Console.WriteLine("   - W³aœciwoœæ 'RegistrationDate' -> Kolumna 'registration_date'");
+            Console.WriteLine("   - Wï¿½aï¿½ciwoï¿½ï¿½ 'FirstName' -> Kolumna 'first_name'");
+            Console.WriteLine("   - Wï¿½aï¿½ciwoï¿½ï¿½ 'LastName' -> Kolumna 'last_name'");
+            Console.WriteLine("   - Wï¿½aï¿½ciwoï¿½ï¿½ 'RegistrationDate' -> Kolumna 'registration_date'");
 
-            Console.WriteLine("\n3. Atrybut [Key] - klucz g³ówny:");
-            Console.WriteLine("   Wszystkie encje maj¹ w³aœciwoœæ 'Id' jako klucz g³ówny");
+            Console.WriteLine("\n3. Atrybut [Key] - klucz gï¿½ï¿½wny:");
+            Console.WriteLine("   Wszystkie encje majï¿½ wï¿½aï¿½ciwoï¿½ï¿½ 'Id' jako klucz gï¿½ï¿½wny");
             Console.WriteLine("   (z AUTOINCREMENT)");
 
             Console.WriteLine("\n4. Demonstracja zapisu i odczytu:");
@@ -72,7 +72,7 @@ public static class AttributeMappingDemo
                 Console.WriteLine($"     Nazwa: {foundProduct.Name}");
             }
 
-            Console.WriteLine("\n5. Atrybut [Ignore] - pomijanie w³aœciwoœci:");
+            Console.WriteLine("\n5. Atrybut [Ignore] - pomijanie wï¿½aï¿½ciwoï¿½ci:");
             var customer = new Customer
             {
                 FirstName = "Jan",
@@ -86,7 +86,7 @@ public static class AttributeMappingDemo
             context.SaveChanges();
 
             Console.WriteLine($"   ? Zapisano klienta: {customer.FullName}");
-            Console.WriteLine($"     W³aœciwoœæ 'FullName' (computed): {customer.FullName}");
+            Console.WriteLine($"     Wï¿½aï¿½ciwoï¿½ï¿½ 'FullName' (computed): {customer.FullName}");
             Console.WriteLine($"     ? NIE jest zapisywana w bazie (atrybut [Ignore])");
 
             // Odczyt i weryfikacja
@@ -99,15 +99,15 @@ public static class AttributeMappingDemo
                 Console.WriteLine($"     FullName (obliczony): {foundCustomer.FullName}");
             }
 
-            Console.WriteLine("\n6. Demonstracja nawigacji (w³aœciwoœci z [Ignore]):");
+            Console.WriteLine("\n6. Demonstracja nawigacji (wlasciwosci z [Ignore]):");
             product.Category = new Category
             {
                 Name = "Test Category",
                 Description = "Category for testing"
             };
 
-            Console.WriteLine($"   Produkt ma przypisan¹ kategoriê: {product.Category.Name}");
-            Console.WriteLine($"   ? W³aœciwoœæ 'Category' NIE jest zapisywana w bazie");
+            Console.WriteLine($"   Produkt ma przypisanï¿½ kategoriï¿½: {product.Category.Name}");
+            Console.WriteLine($"   ? Wï¿½aï¿½ciwoï¿½ï¿½ 'Category' NIE jest zapisywana w bazie");
             Console.WriteLine($"   ? Tylko 'CategoryId' (klucz obcy) jest zapisywane");
 
             Console.WriteLine("\n7. Sprawdzenie metadanych mapowania:");
@@ -115,27 +115,27 @@ public static class AttributeMappingDemo
             Console.WriteLine($"\n   Product mapping:");
             Console.WriteLine($"   - Tabela: {productMap.TableName}");
             Console.WriteLine($"   - Klucz: {productMap.KeyProperty.PropertyInfo.Name} -> {productMap.KeyProperty.ColumnName}");
-            Console.WriteLine($"   - W³aœciwoœci skalarne:");
+            Console.WriteLine($"   - Wï¿½aï¿½ciwoï¿½ci skalarne:");
             foreach (var prop in productMap.ScalarProperties)
             {
-                Console.WriteLine($"     • {prop.PropertyInfo.Name} -> {prop.ColumnName}");
+                Console.WriteLine($"     ï¿½ {prop.PropertyInfo.Name} -> {prop.ColumnName}");
             }
-            Console.WriteLine($"   - W³aœciwoœci nawigacyjne:");
+            Console.WriteLine($"   - Wï¿½aï¿½ciwoï¿½ci nawigacyjne:");
             foreach (var prop in productMap.NavigationProperties)
             {
-                Console.WriteLine($"     • {prop.PropertyInfo.Name} (ignorowana w bazie)");
+                Console.WriteLine($"     ï¿½ {prop.PropertyInfo.Name} (ignorowana w bazie)");
             }
 
             var customerMap = metadataStore.GetMap<Customer>();
             Console.WriteLine($"\n   Customer mapping:");
             Console.WriteLine($"   - Tabela: {customerMap.TableName}");
-            Console.WriteLine($"   - W³aœciwoœci skalarne:");
+            Console.WriteLine($"   - Wï¿½aï¿½ciwoï¿½ci skalarne:");
             foreach (var prop in customerMap.ScalarProperties)
             {
-                Console.WriteLine($"     • {prop.PropertyInfo.Name} -> {prop.ColumnName}");
+                Console.WriteLine($"     ï¿½ {prop.PropertyInfo.Name} -> {prop.ColumnName}");
             }
         }
 
-        Console.WriteLine("\n=== Attribute Mapping Demo zakoñczone ===");
+        Console.WriteLine("\n=== Attribute Mapping Demo zakoï¿½czone ===");
     }
 }
