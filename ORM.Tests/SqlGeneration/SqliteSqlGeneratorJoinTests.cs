@@ -17,8 +17,10 @@ namespace ORM.Tests.SqlGeneration
 
         private (EntityMap postMap, EntityMap authorMap) CreatePostAndAuthorMaps()
         {
-            var builder = new ModelBuilder(typeof(PostWithAuthor).Assembly);
-            var maps = builder.BuildModel(_naming);
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            var maps = director.Construct(typeof(PostWithAuthor).Assembly);
             
             var postMap = maps[typeof(PostWithAuthor)];
             var authorMap = maps[typeof(Author)];
@@ -155,8 +157,10 @@ namespace ORM.Tests.SqlGeneration
         public void GenerateComplexSelect_WithMultipleJoins_Should_Generate_All_Joins()
         {
             // Arrange
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(_naming);
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            var maps = director.Construct(typeof(UserTestEntity).Assembly);
             var userMap = maps[typeof(UserTestEntity)];
             
             // Create mock entity maps for testing multiple joins

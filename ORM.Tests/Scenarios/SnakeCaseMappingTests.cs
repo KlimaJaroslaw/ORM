@@ -11,13 +11,14 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Use_SnakeCase_Convention_For_Column_Names()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var naming = new SnakeCaseNamingStrategy();
+            INamingStrategy naming = new SnakeCaseNamingStrategy(); // ← zmiana
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
 
-            var maps = builder.BuildModel(naming);
+            IReadOnlyDictionary<System.Type, EntityMap> maps = director.Construct(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
-            Assert.Equal("Users", map.TableName);
+            Assert.Equal("users", map.TableName); // teraz zgodne z SnakeCaseNamingStrategy
             Assert.Equal("id", map.KeyProperty.ColumnName);
             Assert.Equal("first_name", map.FindPropertyByName("FirstName")!.ColumnName);
             Assert.Equal("last_name", map.FindPropertyByName("LastName")!.ColumnName);
@@ -26,10 +27,11 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void SnakeCase_Should_Work_With_Materialization()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var naming = new SnakeCaseNamingStrategy();
+            INamingStrategy naming = new SnakeCaseNamingStrategy(); // ← zmiana
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
 
-            var maps = builder.BuildModel(naming);
+            IReadOnlyDictionary<System.Type, EntityMap> maps = director.Construct(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
             var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
@@ -41,8 +43,6 @@ namespace ORM.Tests.Scenarios
                 { "last_name", "Marley" }
             });
 
-            // var entity = (UserTestEntity)materializer.Materialize(record, map);
-
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
 
@@ -52,7 +52,6 @@ namespace ORM.Tests.Scenarios
             }
 
             var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
-
 
             Assert.Equal(7, entity.Id);
             Assert.Equal("Bob", entity.FirstName);

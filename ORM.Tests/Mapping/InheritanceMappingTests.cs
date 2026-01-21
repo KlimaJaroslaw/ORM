@@ -7,19 +7,21 @@ namespace ORM.Tests
 {
     public class InheritanceMappingTests
     {
-        private readonly ModelBuilder _modelBuilder;
+        private readonly IModelBuilder _builder;
+        private readonly ModelDirector _director;
         private readonly INamingStrategy _naming;
 
         public InheritanceMappingTests()
         {
-            _modelBuilder = new ModelBuilder(this.GetType().Assembly);
             _naming = new PascalCaseNamingStrategy();
+            _builder = new ReflectionModelBuilder(_naming);
+            _director = new ModelDirector(_builder);
         }
 
         [Fact]
         public void Should_Map_TPH_To_Single_Table_With_Discriminator()
         {
-            var model = _modelBuilder.BuildModel(_naming);
+            var model = _director.Construct(this.GetType().Assembly);
             var dogMap = model[typeof(Dog)];
             var animalMap = model[typeof(Animal)];
 
@@ -37,7 +39,7 @@ namespace ORM.Tests
         [Fact]
         public void Should_Map_TPC_To_Separate_Tables_Without_Discriminator()
         {
-            var model = _modelBuilder.BuildModel(_naming);
+            var model = _director.Construct(this.GetType().Assembly);
             var cardMap = model[typeof(CreditCardPayment)];
 
             Assert.Equal("CreditCardPayments", cardMap.TableName);
@@ -51,4 +53,5 @@ namespace ORM.Tests
             Assert.Contains(cardMap.ScalarProperties, p => p.PropertyInfo.Name == "CardNumber");
         }
     }
+
 }

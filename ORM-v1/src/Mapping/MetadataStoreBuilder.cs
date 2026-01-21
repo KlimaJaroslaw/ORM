@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Reflection;
 
 namespace ORM_v1.Mapping
@@ -13,18 +12,14 @@ namespace ORM_v1.Mapping
 
         public MetadataStoreBuilder AddAssembly(Assembly assembly)
         {
-            if (assembly == null)
-                throw new ArgumentNullException(nameof(assembly));
-
+            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
             _assemblies.Add(assembly);
             return this;
         }
 
         public MetadataStoreBuilder AddAssemblies(IEnumerable<Assembly> assemblies)
         {
-            if (assemblies == null)
-                throw new ArgumentNullException(nameof(assemblies));
-
+            if (assemblies == null) throw new ArgumentNullException(nameof(assemblies));
             _assemblies.AddRange(assemblies);
             return this;
         }
@@ -47,9 +42,18 @@ namespace ORM_v1.Mapping
 
             foreach (var asm in _assemblies)
             {
-                var builder = new ModelBuilder(asm);
-                var maps = builder.BuildModel(_naming);
+                // --- WZORZEC BUILDER (GoF) ---
+                
+                // 1. Concrete Builder: Wie JAK tworzyć mapy
+                IModelBuilder builder = new ReflectionModelBuilder(_naming);
+                
+                // 2. Director: Wie CO i W JAKIEJ KOLEJNOŚCI budować
+                var director = new ModelDirector(builder);
+                
+                // 3. Construct: Proces budowania
+                var maps = director.Construct(asm);
 
+                // Scalanie wyników
                 foreach (var kv in maps)
                 {
                     if (!allMaps.ContainsKey(kv.Key))

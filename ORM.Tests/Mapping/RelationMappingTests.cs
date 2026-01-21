@@ -8,19 +8,21 @@ namespace ORM.Tests
 {
     public class RelationMappingTests
     {
-        private readonly ModelBuilder _modelBuilder;
+        private readonly IModelBuilder _builder;
+        private readonly ModelDirector _director;
         private readonly INamingStrategy _naming;
 
         public RelationMappingTests()
         {
-            _modelBuilder = new ModelBuilder(this.GetType().Assembly);
             _naming = new PascalCaseNamingStrategy();
+            _builder = new ReflectionModelBuilder(_naming);
+            _director = new ModelDirector(_builder);
         }
 
         [Fact]
         public void Should_Detect_OneToMany_Collection()
         {
-            var model = _modelBuilder.BuildModel(_naming);
+            var model = _director.Construct(this.GetType().Assembly);
             var userMap = model[typeof(User)];
             
             var ordersProp = userMap.NavigationProperties.First(p => p.PropertyInfo.Name == "Orders");
@@ -34,7 +36,7 @@ namespace ORM.Tests
         [Fact]
         public void Should_Detect_ManyToOne_With_ForeignKey()
         {
-            var model = _modelBuilder.BuildModel(_naming);
+            var model = _director.Construct(this.GetType().Assembly);
             var orderMap = model[typeof(Order)];
 
             var userProp = orderMap.NavigationProperties.First(p => p.PropertyInfo.Name == "User");
@@ -46,4 +48,5 @@ namespace ORM.Tests
             Assert.Equal("UserId", userProp.ForeignKeyName);
         }
     }
+
 }

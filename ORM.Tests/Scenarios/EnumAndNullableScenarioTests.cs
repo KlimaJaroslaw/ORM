@@ -3,6 +3,7 @@ using ORM.Tests.Helpers;
 using ORM.Tests.TestEntities;
 using Xunit;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace ORM.Tests.Scenarios
 {
@@ -11,10 +12,12 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Map_Enum_And_Nullable_Enum_Correctly()
         {
-            var builder = new ModelBuilder(typeof(UserWithEnums).Assembly);
-            var naming = new PascalCaseNamingStrategy();
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
 
-            var maps = builder.BuildModel(naming);
+            IReadOnlyDictionary<Type, EntityMap> maps = director.Construct(typeof(UserWithEnums).Assembly);
+
             var map = maps[typeof(UserWithEnums)];
 
             var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
@@ -26,8 +29,6 @@ namespace ORM.Tests.Scenarios
                 { "OptionalRole", null }
             });
 
-            // var entity = (UserWithEnums)materializer.Materialize(record, map);
-
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
 
@@ -37,7 +38,6 @@ namespace ORM.Tests.Scenarios
             }
 
             var entity = (UserWithEnums)materializer.Materialize(record, ordinals);
-
 
             Assert.Equal(Role.Admin, entity.Role);
             Assert.Null(entity.OptionalRole);

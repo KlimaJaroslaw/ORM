@@ -11,9 +11,11 @@ namespace ORM.Tests.Mapping
         [Fact]
         public void Materializer_Should_Create_Object_From_DataRecord()
         {
-            var naming = new PascalCaseNamingStrategy();
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(naming);
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+
+            IReadOnlyDictionary<Type, EntityMap> maps = director.Construct(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
             var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
