@@ -18,7 +18,7 @@ namespace ORM_v1.Mapping
         
         public EntityMap? BaseMap { get; }
         
-        // Te pola są teraz "cache'owane" na podstawie strategii dla wygody reszty systemu
+        // Te pola są "cache'owane" ze strategii
         public string? Discriminator { get; }
         public string? DiscriminatorColumn { get; }
 
@@ -27,7 +27,6 @@ namespace ORM_v1.Mapping
         public IReadOnlyList<PropertyMap> ScalarProperties { get; }
         public IReadOnlyList<PropertyMap> NavigationProperties { get; }
 
-        // Wewnętrzne indeksy dla wydajności O(1)
         private readonly IReadOnlyDictionary<string, PropertyMap> _columnMapping;
         private readonly IReadOnlyDictionary<string, PropertyMap> _propertyMapping;
 
@@ -50,9 +49,8 @@ namespace ORM_v1.Mapping
             BaseMap = baseMap;
             InheritanceStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
 
-            // --- LOGIKA STRATEGII ---
-            
-            // Jeśli strategia to TPH, wyciągamy z niej dane o dyskryminatorze
+            // --- NAPRAWA: Rozpakowanie danych ze strategii ---
+            // Bez tego pola Discriminator/Column pozostają NULL-ami!
             if (InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
             {
                 DiscriminatorColumn = tphStrategy.DiscriminatorColumn;
@@ -60,35 +58,14 @@ namespace ORM_v1.Mapping
             }
             else
             {
-                // Dla TPC (Table Per Concrete Class) nie używamy dyskryminatora
+                // Dla TPC
                 DiscriminatorColumn = null;
                 Discriminator = null;
             }
+            // -------------------------------------------------
 
-            // --- WALIDACJA STRATEGII ---
-
-            // Walidacja TPH: Dziecko musi mapować się na tę samą tabelę co rodzic
-            if (BaseMap != null && InheritanceStrategy is TablePerHierarchyStrategy)
-            {
-                if (!string.Equals(TableName, BaseMap.TableName, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new InvalidOperationException(
-                        $"TPH Error: Entity '{EntityType.Name}' is derived from '{BaseMap.EntityType.Name}' " +
-                        $"but maps to a different table ('{TableName}' vs '{BaseMap.TableName}'). " +
-                        "In Table-Per-Hierarchy, all classes in the hierarchy must map to the same table.");
-                }
-            }
-
-            // Walidacja TPC: Nie powinno być dyskryminatora (chociaż logika wyżej i tak ustawiła null)
-            if (InheritanceStrategy is TablePerConcreteClassStrategy)
-            {
-                if (DiscriminatorColumn != null || Discriminator != null)
-                {
-                    // To teoretycznie nie powinno wystąpić dzięki logice Buildera, ale warto mieć guard
-                    DiscriminatorColumn = null;
-                    Discriminator = null;
-                }
-            }
+            // Walidacja (delegowana do strategii)
+            InheritanceStrategy.Validate(this);
 
             KeyProperty = keyProperty ?? throw new ArgumentNullException(nameof(keyProperty));
 
@@ -157,7 +134,7 @@ namespace ORM_v1.Mapping
 
         public bool IsHierarchyRoot => BaseMap == null;
 
-        // Pomocnicza właściwość, sprawdzająca czy używamy strategii TPH
+        // Pomocnicza właściwość
         public bool UsesDiscriminator => InheritanceStrategy is TablePerHierarchyStrategy;
 
         public bool HasAutoIncrementKey =>

@@ -42,18 +42,13 @@ namespace ORM_v1.Mapping
 
             foreach (var asm in _assemblies)
             {
-                // --- WZORZEC BUILDER (GoF) ---
-                
-                // 1. Concrete Builder: Wie JAK tworzyć mapy
+                // Użycie refleksji do budowy modelu
                 IModelBuilder builder = new ReflectionModelBuilder(_naming);
-                
-                // 2. Director: Wie CO i W JAKIEJ KOLEJNOŚCI budować
+                // Użycie dyrektora do skonstruowania map
                 var director = new ModelDirector(builder);
-                
-                // 3. Construct: Proces budowania
+                // Konstruowanie map dla danej assembly
                 var maps = director.Construct(asm);
-
-                // Scalanie wyników
+                // Dodawanie map do zbioru wszystkich map
                 foreach (var kv in maps)
                 {
                     if (!allMaps.ContainsKey(kv.Key))
