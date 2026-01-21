@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using ORM_v1.Attributes;
+using ORM_v1.Mapping.Strategies;
 
 namespace ORM_v1.Mapping
 {
@@ -34,55 +35,74 @@ namespace ORM_v1.Mapping
             return _builtMaps;
         }
 
+        public void Reset() => _builtMaps.Clear();
+
         // --- Logika prywatna (szczegóły budowania) ---
 
         private EntityMap BuildEntityMap(Type entityType, INamingStrategy naming, EntityMap? baseMap, bool hasDerivedTypes)
         {
-            InheritanceStrategy strategy = InheritanceStrategy.TablePerHierarchy;
-
-            // Sprawdź atrybut [Table] dla własnej tabeli (nie dziedziczonej)
-            var ownTableAttr = entityType.GetCustomAttribute<TableAttribute>(inherit: false);
-
-            if (baseMap != null && ownTableAttr != null)
-            {
-                strategy = InheritanceStrategy.TablePerConcreteClass;
-            }
-
+            // --- KROK 1: Określenie Strategii Dziedziczenia ---
+            
+            IInheritanceStrategy strategy;
             string tableName;
-            string? discriminatorColumn = null;
-            string? discriminator = null;
+            
+            // Sprawdź czy klasa ma WŁASNY atrybut Table (co wymusza TPC w dziedziczeniu)
+            var ownTableAttr = entityType.GetCustomAttribute<TableAttribute>(inherit: false);
+            bool isTpcExplicit = (baseMap != null && ownTableAttr != null);
 
             if (baseMap != null)
             {
-                if (strategy == InheritanceStrategy.TablePerHierarchy)
+                if (!isTpcExplicit)
                 {
-                    // TPH: Tabela rodzica
-                    tableName = baseMap.TableName; // w TPH trzymamy nazwę tabeli rodzica
-                    discriminatorColumn = baseMap.DiscriminatorColumn;
-                    discriminator = entityType.Name;
+                    // --- STRATEGIA: TPH (Table Per Hierarchy) ---
+                    // Dziedziczymy tabelę po rodzicu
+                    tableName = baseMap.TableName;
+
+                    // Ustalamy kolumnę dyskryminatora
+                    string discriminatorCol = "Discriminator"; // Default
+                    
+                    // Jeśli rodzic też jest TPH, bierzemy nazwę kolumny od niego
+                    if (baseMap.InheritanceStrategy is TablePerHierarchyStrategy parentTph)
+                    {
+                        discriminatorCol = parentTph.DiscriminatorColumn;
+                    }
+
+                    // Tworzymy obiekt strategii TPH z wartością dyskryminatora = Nazwa Klasy
+                    strategy = new TablePerHierarchyStrategy(discriminatorCol, entityType.Name);
                 }
                 else
                 {
-                    // TPC: własna tabela – konwertujemy przez strategię
-                    tableName = naming.ConvertName(ResolveTableName(entityType, naming));
+                    // --- STRATEGIA: TPC (Table Per Concrete Class) ---
+                    // Mamy własną tabelę
+                    tableName = ResolveTableName(entityType, naming);
+                    strategy = new TablePerConcreteClassStrategy();
                 }
             }
             else
             {
-                // Root
-                tableName = naming.ConvertName(ResolveTableName(entityType, naming));
+                // --- ROOT (Korzeń hierarchii lub klasa samodzielna) ---
+                tableName = ResolveTableName(entityType, naming);
 
                 if (hasDerivedTypes)
                 {
-                    discriminatorColumn = "Discriminator";
-                    discriminator = entityType.Name;
+                    // Jeśli są dzieci, startujemy hierarchię TPH
+                    strategy = new TablePerHierarchyStrategy("Discriminator", entityType.Name);
+                }
+                else
+                {
+                    // Klasa samodzielna -> Traktujemy jako TPC (najbezpieczniejsza opcja domyślna)
+                    strategy = new TablePerConcreteClassStrategy();
                 }
             }
+
+            // --- KROK 2: Budowanie Właściwości ---
 
             var properties = BuildPropertyMaps(entityType, naming);
 
             PropertyMap keyProperty;
-            if (baseMap != null && strategy == InheritanceStrategy.TablePerHierarchy)
+            
+            // W TPH klucz jest wspólny i zdefiniowany w rodzicu
+            if (baseMap != null && strategy is TablePerHierarchyStrategy)
             {
                 keyProperty = baseMap.KeyProperty;
             }
@@ -91,18 +111,19 @@ namespace ORM_v1.Mapping
                 keyProperty = ResolveKeyProperty(entityType, properties);
             }
 
+            // --- KROK 3: Konstrukcja Mapy ---
+            
+            // Zauważ, że nie przekazujemy już 'discriminator' ani 'discriminatorColumn' luzem.
+            // Są one zawarte w obiekcie 'strategy'.
             return new EntityMap(
                 entityType,
                 tableName,
                 entityType.IsAbstract,
                 baseMap,
                 strategy,
-                discriminator,
-                discriminatorColumn,
                 keyProperty,
                 properties);
         }
-
 
         private static string ResolveTableName(Type type, INamingStrategy naming)
         {
@@ -118,7 +139,7 @@ namespace ORM_v1.Mapping
 
             foreach (var prop in properties)
             {
-                // IsEntityCandidate helper - uproszczony check na potrzeby relacji
+                // Helper lambda do wykrywania encji
                 var map = PropertyMap.FromPropertyInfo(
                     prop,
                     naming,
@@ -144,28 +165,21 @@ namespace ORM_v1.Mapping
                 string.Equals(p.PropertyInfo.Name, expected, StringComparison.OrdinalIgnoreCase));
             if (typeIdProp != null) return typeIdProp;
 
-            // Fallback: Jeśli encja nie ma klucza, rzucamy wyjątek (chyba że to klasa abstrakcyjna bez tabeli)
             if (!type.IsAbstract)
             {
                  throw new InvalidOperationException(
                     $"Entity '{type.Name}' does not define a primary key. Add [Key] or named 'Id'.");
             }
             
-            // Dla bezpieczeństwa, żeby kompilator nie krzyczał (w TPH klucz jest w BaseMap)
             return properties.FirstOrDefault()!;
         }
 
-        // Kopia helpera do wykrywania encji (potrzebna dla PropertyMap do wykrywania relacji)
         private static bool IsTypeEntityCandidate(Type type)
         {
-            // Odsiewamy typy proste
             if (type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || type == typeof(DateTime) || type.IsEnum) 
                 return false;
                 
             return type.IsClass && !type.IsAbstract; 
         }
-
-        // Builder może być użyty wielokrotnie
-        public void Reset() => _builtMaps.Clear();
     }
 }

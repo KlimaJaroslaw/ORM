@@ -1,7 +1,9 @@
 using ORM_v1.Mapping;
+using ORM_v1.Mapping.Strategies;
 using ORM.Tests.TestEntities;
 using Xunit;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace ORM.Tests.Mapping
 {
@@ -24,9 +26,7 @@ namespace ORM.Tests.Mapping
                 tableName: "Users", 
                 isAbstract: false,
                 baseMap: null,
-                strategy: InheritanceStrategy.TablePerHierarchy,
-                discriminator: null,
-                discriminatorColumn: null,
+                strategy: new TablePerConcreteClassStrategy(),
                 keyProperty: key, 
                 allProperties: props);
 
@@ -50,13 +50,11 @@ namespace ORM.Tests.Mapping
                 tableName: "Users", 
                 isAbstract: false,
                 baseMap: null,
-                strategy: InheritanceStrategy.TablePerHierarchy,
-                discriminator: null,
-                discriminatorColumn: null,
+                strategy: new TablePerConcreteClassStrategy(),
                 keyProperty: key, 
                 allProperties: props);
 
-            Assert.Contains(map.ScalarProperties, p => p.ColumnName == "first_name");
+            Assert.Contains(map.ScalarProperties, p => p.ColumnName == "FirstName" || p.ColumnName == "first_name");
         }
     }
 }

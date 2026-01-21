@@ -1,5 +1,6 @@
 using Xunit;
 using ORM_v1.Mapping;
+using ORM_v1.Mapping.Strategies; // WAŻNE: Dodaj ten using
 using ORM.Tests.Models;
 using System.Linq;
 
@@ -28,8 +29,10 @@ namespace ORM.Tests
             Assert.Equal("Animals", animalMap.TableName);
             Assert.Equal("Animals", dogMap.TableName);
 
-            Assert.Equal(InheritanceStrategy.TablePerHierarchy, dogMap.Strategy);
+            // ZMIANA: Sprawdzamy typ strategii zamiast Enuma
+            Assert.IsType<TablePerHierarchyStrategy>(dogMap.InheritanceStrategy);
 
+            // Te pola nadal działają, bo EntityMap je wystawia (pobierając ze strategii)
             Assert.Equal("Discriminator", dogMap.DiscriminatorColumn);
             Assert.Equal(nameof(Dog), dogMap.Discriminator);
 
@@ -44,7 +47,8 @@ namespace ORM.Tests
 
             Assert.Equal("CreditCardPayments", cardMap.TableName);
 
-            Assert.Equal(InheritanceStrategy.TablePerConcreteClass, cardMap.Strategy);
+            // ZMIANA: Sprawdzamy typ strategii zamiast Enuma
+            Assert.IsType<TablePerConcreteClassStrategy>(cardMap.InheritanceStrategy);
 
             Assert.Null(cardMap.DiscriminatorColumn);
             Assert.Null(cardMap.Discriminator);
@@ -53,5 +57,4 @@ namespace ORM.Tests
             Assert.Contains(cardMap.ScalarProperties, p => p.PropertyInfo.Name == "CardNumber");
         }
     }
-
 }

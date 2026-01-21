@@ -1,6 +1,7 @@
 using ORM.Tests.TestEntities;
 using ORM_v1.Mapping;
 using ORM_v1.Query;
+using ORM_v1.Mapping.Strategies;
 
 namespace ORM.Tests.SqlGeneration
 {
@@ -62,9 +63,7 @@ namespace ORM.Tests.SqlGeneration
                 tableName,
                 isAbstract: false,
                 baseMap: null,
-                strategy: InheritanceStrategy.TablePerHierarchy,
-                discriminator: null,
-                discriminatorColumn: null,
+                strategy: new TablePerConcreteClassStrategy(),
                 keyProperty: keyProp!,
                 allProperties: props
             );

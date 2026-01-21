@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq.Expressions;
+using ORM_v1.Mapping.Strategies;
 
 namespace ORM_v1.Mapping
 {
@@ -37,16 +38,16 @@ namespace ORM_v1.Mapping
             if (record == null) throw new ArgumentNullException(nameof(record));
             if (ordinals == null) throw new ArgumentNullException(nameof(ordinals));
 
-            if (_rootMap.UsesDiscriminator)
+            if (_rootMap.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
             {
                 
-                int discriminatorOrdinal = GetDiscriminatorOrdinal(record, _rootMap.DiscriminatorColumn!);
+                int discriminatorOrdinal = GetDiscriminatorOrdinal(record, tphStrategy.DiscriminatorColumn);
                 
                 if (discriminatorOrdinal >= 0 && !record.IsDBNull(discriminatorOrdinal))
                 {
                     string discriminatorValue = record.GetString(discriminatorOrdinal);
 
-                    if (!string.Equals(discriminatorValue, _rootMap.Discriminator, StringComparison.OrdinalIgnoreCase))
+                    if (!string.Equals(discriminatorValue, tphStrategy.DiscriminatorValue, StringComparison.OrdinalIgnoreCase))
                     {
                         return MaterializeDerived(record, discriminatorValue);
                     }
