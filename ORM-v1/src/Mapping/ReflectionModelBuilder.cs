@@ -41,68 +41,94 @@ namespace ORM_v1.Mapping
 
         private EntityMap BuildEntityMap(Type entityType, INamingStrategy naming, EntityMap? baseMap, bool hasDerivedTypes)
         {
-            // --- KROK 1: Określenie Strategii Dziedziczenia ---
-            
-            IInheritanceStrategy strategy;
-            string tableName;
-            
-            // Sprawdź czy klasa ma WŁASNY atrybut Table (co wymusza TPC w dziedziczeniu)
+            // KROK 1: Decyzja o typie strategii (Heurystyka na Enumach)
+            InheritanceStrategy strategyType = InheritanceStrategy.TablePerHierarchy;
+
             var ownTableAttr = entityType.GetCustomAttribute<TableAttribute>(inherit: false);
-            bool isTpcExplicit = (baseMap != null && ownTableAttr != null);
+            var rootType = baseMap?.RootMap.EntityType ?? entityType;
+            var strategyAttr = rootType.GetCustomAttribute<InheritanceStrategyAttribute>();
 
             if (baseMap != null)
             {
-                if (!isTpcExplicit)
+                // --- Jesteśmy DZIECKIEM ---
+                if (ownTableAttr != null)
                 {
-                    // --- STRATEGIA: TPH (Table Per Hierarchy) ---
-                    // Dziedziczymy tabelę po rodzicu
-                    tableName = baseMap.TableName;
+                    if (strategyAttr != null && strategyAttr.Strategy == InheritanceStrategy.TablePerType)
+                    {
+                        strategyType = InheritanceStrategy.TablePerType;
+                    }
+                    else
+                    {
+                        strategyType = InheritanceStrategy.TablePerConcreteClass;
+                    }
+                }
+                else
+                {
+                    strategyType = InheritanceStrategy.TablePerHierarchy;
+                }
+            }
+            else 
+            {
+                // --- Jesteśmy KORZENIEM (ROOT) ---
+                if (strategyAttr != null)
+                {
+                    strategyType = strategyAttr.Strategy;
+                }
+                else if (ownTableAttr != null && !hasDerivedTypes)
+                {
+                    strategyType = InheritanceStrategy.TablePerConcreteClass;
+                }
+                else
+                {
+                    strategyType = InheritanceStrategy.TablePerHierarchy;
+                }
+            }
 
-                    // Ustalamy kolumnę dyskryminatora
-                    string discriminatorCol = "Discriminator"; // Default
-                    
-                    // Jeśli rodzic też jest TPH, bierzemy nazwę kolumny od niego
+            // KROK 2: Instancjonowanie Obiektu Strategii (Interface)
+            // --- ZMIANA TUTAJ ---
+            
+            IInheritanceStrategy strategyImpl;
+            string tableName;
+
+            if (strategyType == InheritanceStrategy.TablePerHierarchy)
+            {
+                // --- TPH ---
+                if (baseMap != null)
+                {
+                    tableName = baseMap.TableName;
+                    string discriminatorCol = "Discriminator";
                     if (baseMap.InheritanceStrategy is TablePerHierarchyStrategy parentTph)
                     {
                         discriminatorCol = parentTph.DiscriminatorColumn;
                     }
-
-                    // Tworzymy obiekt strategii TPH z wartością dyskryminatora = Nazwa Klasy
-                    strategy = new TablePerHierarchyStrategy(discriminatorCol, entityType.Name);
+                    strategyImpl = new TablePerHierarchyStrategy(discriminatorCol, entityType.Name);
                 }
                 else
                 {
-                    // --- STRATEGIA: TPC (Table Per Concrete Class) ---
-                    // Mamy własną tabelę
                     tableName = ResolveTableName(entityType, naming);
-                    strategy = new TablePerConcreteClassStrategy();
+                    strategyImpl = new TablePerHierarchyStrategy("Discriminator", entityType.Name);
                 }
+            }
+            else if (strategyType == InheritanceStrategy.TablePerType)
+            {
+                // --- TPT (Nowa klasa!) ---
+                tableName = ResolveTableName(entityType, naming);
+                strategyImpl = new TablePerTypeStrategy();
             }
             else
             {
-                // --- ROOT (Korzeń hierarchii lub klasa samodzielna) ---
+                // --- TPC ---
                 tableName = ResolveTableName(entityType, naming);
-
-                if (hasDerivedTypes)
-                {
-                    // Jeśli są dzieci, startujemy hierarchię TPH
-                    strategy = new TablePerHierarchyStrategy("Discriminator", entityType.Name);
-                }
-                else
-                {
-                    // Klasa samodzielna -> Traktujemy jako TPC (najbezpieczniejsza opcja domyślna)
-                    strategy = new TablePerConcreteClassStrategy();
-                }
+                strategyImpl = new TablePerConcreteClassStrategy();
             }
 
-            // --- KROK 2: Budowanie Właściwości ---
+            // KROK 3: Budowanie Właściwości
 
             var properties = BuildPropertyMaps(entityType, naming);
 
             PropertyMap keyProperty;
             
-            // W TPH klucz jest wspólny i zdefiniowany w rodzicu
-            if (baseMap != null && strategy is TablePerHierarchyStrategy)
+            if (baseMap != null && strategyImpl is TablePerHierarchyStrategy)
             {
                 keyProperty = baseMap.KeyProperty;
             }
@@ -111,16 +137,14 @@ namespace ORM_v1.Mapping
                 keyProperty = ResolveKeyProperty(entityType, properties);
             }
 
-            // --- KROK 3: Konstrukcja Mapy ---
+            // KROK 4: Konstrukcja Mapy
             
-            // Zauważ, że nie przekazujemy już 'discriminator' ani 'discriminatorColumn' luzem.
-            // Są one zawarte w obiekcie 'strategy'.
             return new EntityMap(
                 entityType,
                 tableName,
                 entityType.IsAbstract,
                 baseMap,
-                strategy,
+                strategyImpl,
                 keyProperty,
                 properties);
         }

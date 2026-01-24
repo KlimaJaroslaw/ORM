@@ -2,13 +2,10 @@ namespace ORM_v1.Mapping.Strategies
 {
     public interface IInheritanceStrategy
     {
-        // Znacznik typu strategii (dla ułatwienia debugowania)
         string Name { get; }
-        // Metoda walidacji mapy encji zgodnie ze strategią
         void Validate(EntityMap map);
     }
 
-    // Strategia TPH (Table Per Hierarchy) - wymaga dyskryminatora
     public class TablePerHierarchyStrategy : IInheritanceStrategy
     {
         public string Name => "TablePerHierarchy";
@@ -37,7 +34,6 @@ namespace ORM_v1.Mapping.Strategies
         }
     }
 
-    // Strategia TPC (Table Per Concrete Class) - prosta, bez dodatkowych danych
     public class TablePerConcreteClassStrategy : IInheritanceStrategy
     {
         public string Name => "TablePerConcreteClass";
@@ -48,6 +44,33 @@ namespace ORM_v1.Mapping.Strategies
                 throw new InvalidOperationException(
                     $"TPC Error: Entity '{map.EntityType.Name}' uses TPC strategy " +
                     "but has Discriminator values set. This is not allowed.");
+            }
+        }
+    }
+
+    public class TablePerTypeStrategy : IInheritanceStrategy
+    {
+        public string Name => "TablePerType";
+
+        public void Validate(EntityMap map)
+        {
+
+            if (map.Discriminator != null || map.DiscriminatorColumn != null)
+            {
+                throw new InvalidOperationException(
+                   $"TPT Error: Entity '{map.EntityType.Name}' uses TablePerType strategy " +
+                   "but has Discriminator values set. TPT relies on JOINs, not discriminators.");
+            }
+
+            if (map.BaseMap != null)
+            {
+                if (string.Equals(map.TableName, map.BaseMap.TableName, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"TPT Error: Entity '{map.EntityType.Name}' maps to '{map.TableName}', " +
+                        $"and its parent '{map.BaseMap.EntityType.Name}' also maps to '{map.BaseMap.TableName}'. " +
+                        "In Table Per Type (TPT), derived classes MUST have their own, distinct tables.");
+                }
             }
         }
     }
