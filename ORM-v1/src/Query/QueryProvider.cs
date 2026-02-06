@@ -18,14 +18,25 @@ public class QueryProvider : IQueryProvider
     {
         var elementType = expression.Type.GetGenericArguments()[0];
         var dbSetType = typeof(DbSet<>).MakeGenericType(elementType);
-        return (IQueryable)Activator.CreateInstance(dbSetType, this,  _context)!;
+
+        return (IQueryable)Activator.CreateInstance(
+            dbSetType,
+            this,
+            expression
+        )!;
     }
-    
+
     IQueryable<TElement> IQueryProvider.CreateQuery<TElement>(Expression expression)
     {
         var dbSetType = typeof(DbSet<>).MakeGenericType(typeof(TElement));
-        return (IQueryable<TElement>)Activator.CreateInstance(dbSetType, this, expression)!;
+
+        return (IQueryable<TElement>)Activator.CreateInstance(
+            dbSetType,
+            this,
+            expression
+        )!;
     }
+
     public object Execute(Expression expression)
     {
         return Execute<object>(expression);
@@ -36,11 +47,11 @@ public class QueryProvider : IQueryProvider
         var visitor = new SqlExpressionVisitor();
         visitor.Visit(expression);
 
-        // TODO
-        // var sql = visitor.Sql;
-        // var parameters = visitor.Parameters;
-        
-        // return _context.ExecuteQuery<TResult>(sql, parameters);
-        throw new NotImplementedException("Linq execution pipeline not implemented yet");
+        var sql = visitor.Sql;
+
+        Console.WriteLine("Generated SQL:");
+        Console.WriteLine(sql);
+
+        return default!;
     }
 }

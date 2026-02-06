@@ -1,31 +1,22 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
-using System.Net.Http.Headers;
-using System.Text;
 
 namespace ORM_v1.Query;
 
 public class SqlExpressionVisitor : ExpressionVisitor
 {
-    private readonly StringBuilder _sql = new();
-    private readonly List<object?> _parameters = new();
-    public string Sql => _sql.ToString();
-    public IReadOnlyList<object?> Parameters => _parameters;
+    private readonly SqlQueryBuilder _builder = new();
+
+    public string Sql => _builder.ToString();
 
     protected override Expression VisitConstant(ConstantExpression node)
     {
-        if (node.Value is IQueryable)
+        if (node.Value is IQueryable q)
         {
-            _sql.Append("SELECT * FROM ");
+            _builder.Select(new[] { "*" })
+                    .From(q.ElementType.Name);
         }
-        else
-        {
-            var param = $"@p{_parameters.Count}";
-            _sql.Append(param);
-            _parameters.Add(node.Value);
-        }
-
         return node;
     }
 
@@ -34,60 +25,70 @@ public class SqlExpressionVisitor : ExpressionVisitor
         if (node.Method.Name == "Where")
         {
             Visit(node.Arguments[0]);
-            _sql.Append(" WHERE ");
-            Visit(node.Arguments[1]);
+
+            var lambda = (LambdaExpression)((UnaryExpression)node.Arguments[1]).Operand;
+            var condition = ParseCondition(lambda.Body);
+
+            _builder.Where(condition);
             return node;
         }
 
         if (node.Method.Name == "OrderBy")
         {
             Visit(node.Arguments[0]);
-            _sql.Append(" ORDER BY ");
-            Visit(node.Arguments[1]);
+
+            var lambda = (LambdaExpression)((UnaryExpression)node.Arguments[1]).Operand;
+            var member = (MemberExpression)lambda.Body;
+
+            _builder.OrderBy(new[] { member.Member.Name });
             return node;
         }
 
         if (node.Method.Name == "Take")
         {
             Visit(node.Arguments[0]);
-            _sql.Append(" LIMIT ");
-            Visit(node.Arguments[1]);
+            var constant = (ConstantExpression)node.Arguments[1];
+
+            _builder.Limit((int)constant.Value!);
             return node;
         }
 
         if (node.Method.Name == "Skip")
         {
             Visit(node.Arguments[0]);
-            _sql.Append(" OFFSET ");
-            Visit(node.Arguments[1]);
+            var constant = (ConstantExpression)node.Arguments[1];
+
+            _builder.Offset((int)constant.Value!);
             return node;
         }
+
         return base.VisitMethodCall(node);
     }
 
-    protected override Expression VisitLambda<T>(Expression<T> node)
+    private string ParseCondition(Expression expr)
     {
-        Visit(node.Body);
-        return node;
-    }
-
-    protected override Expression VisitBinary(BinaryExpression node)
-    {
-        Visit(node.Left);
-        _sql.Append(node.NodeType switch
+        if (expr is BinaryExpression bin)
         {
-            ExpressionType.Equal => " = ",
-            ExpressionType.GreaterThan => " > ",
-            ExpressionType.LessThan => " < ",
-            _ => throw new NotSupportedException()
-        });
-        Visit(node.Right);
-        return node;
-    }
+            var left = ParseCondition(bin.Left);
+            var right = ParseCondition(bin.Right);
 
-    protected override Expression VisitMember(MemberExpression node)
-    {
-        _sql.Append(node.Member.Name);
-        return node;
+            var op = bin.NodeType switch
+            {
+                ExpressionType.Equal => "=",
+                ExpressionType.GreaterThan => ">",
+                ExpressionType.LessThan => "<",
+                _ => throw new NotSupportedException()
+            };
+
+            return $"{left} {op} {right}";
+        }
+
+        if (expr is MemberExpression member)
+            return member.Member.Name;
+
+        if (expr is ConstantExpression constant)
+            return constant.Value?.ToString() ?? "NULL";
+
+        throw new NotSupportedException(expr.NodeType.ToString());
     }
 }
