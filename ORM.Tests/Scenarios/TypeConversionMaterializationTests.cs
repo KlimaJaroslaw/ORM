@@ -3,44 +3,49 @@ using ORM.Tests.TestEntities;
 using ORM.Tests.Helpers;
 using Xunit;
 using ORM_v1.Attributes;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace ORM.Tests.Scenarios
 {
     /// <summary>
-    /// Test weryfikuj¹cy konwersjê typów podczas materializacji obiektów.
-    /// Szczególnie wa¿ne dla SQLite, które zwraca Int64 zamiast Int32.
+    /// Test weryfikujÄ…cy konwersjÄ™ typÃ³w podczas materializacji obiektÃ³w.
+    /// SzczegÃ³lnie waÅ¼ne dla SQLite, ktÃ³re zwraca Int64 zamiast Int32.
     /// </summary>
     public class TypeConversionMaterializationTests
     {
+        private static IReadOnlyDictionary<Type, EntityMap> BuildModel(Assembly asm)
+        {
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            return director.Construct(asm);
+        }
+
         [Fact]
         public void Should_Convert_Int64_To_Int32_From_SQLite()
         {
-            // Arrange
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            var maps = BuildModel(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
-            // Symulujemy dane z SQLite - zwraca Int64 zamiast Int32
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
-                { "Id", 42L },  // Int64 (long) - jak w SQLite
+                { "Id", 42L },  // Int64 (SQLite)
                 { "first_name", "John" },
                 { "LastName", "Doe" }
             });
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
+
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
-
             foreach (var prop in map.ScalarProperties)
             {
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            // Act
-            var entity = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+            var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
 
-            // Assert
             Assert.Equal(42, entity.Id);  // Int32
             Assert.Equal("John", entity.FirstName);
             Assert.Equal("Doe", entity.LastName);
@@ -49,41 +54,31 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Handle_Various_Numeric_Conversions()
         {
-            // Arrange
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            var maps = BuildModel(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
-            // Test z ró¿nymi wartoœciami numerycznymi
-            var testCases = new[]
-            {
-                42L,      // Int64
-                100L,     // Int64
-                1L        // Int64
-            };
+            var testCases = new[] { 42L, 100L, 1L };
 
             foreach (var idValue in testCases)
             {
                 var record = new FakeDataRecord(new Dictionary<string, object?>
                 {
-                    { "Id", idValue },  // Int64 -> Int32
+                    { "Id", idValue },
                     { "first_name", "Test" },
                     { "LastName", "User" }
                 });
 
-                var materializer = new ObjectMaterializer(map);
+                var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
+
                 int[] ordinals = new int[map.ScalarProperties.Count];
                 int i = 0;
-
                 foreach (var prop in map.ScalarProperties)
                 {
                     ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
                 }
 
-                // Act
-                var entity = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+                var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
 
-                // Assert
                 Assert.Equal((int)idValue, entity.Id);
             }
         }
@@ -91,32 +86,28 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Throw_InvalidOperationException_On_Invalid_Conversion()
         {
-            // Arrange
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            var maps = BuildModel(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
-            // Próbujemy wstawiæ string do int
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
-                { "Id", "not a number" },  // String -> Int32 (b³¹d!)
+                { "Id", "not a number" }, // String -> int
                 { "first_name", "John" },
                 { "LastName", "Doe" }
             });
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
+
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
-
             foreach (var prop in map.ScalarProperties)
             {
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            // Act & Assert
             var ex = Assert.Throws<InvalidOperationException>(() =>
             {
-                materializer.Materialize(record, map, ordinals);
+                materializer.Materialize(record, ordinals);
             });
 
             Assert.Contains("Cannot convert", ex.Message);
@@ -127,12 +118,9 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Handle_Enum_With_Int64_Value()
         {
-            // Arrange
-            var builder = new ModelBuilder(typeof(UserWithEnums).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            var maps = BuildModel(typeof(UserWithEnums).Assembly);
             var map = maps[typeof(UserWithEnums)];
 
-            // SQLite zwraca enum jako Int64
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
                 { "Id", 1L },
@@ -140,19 +128,17 @@ namespace ORM.Tests.Scenarios
                 { "OptionalRole", 0L }
             });
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
+
             int[] ordinals = new int[map.ScalarProperties.Count];
             int i = 0;
-
             foreach (var prop in map.ScalarProperties)
             {
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            // Act
-            var entity = (UserWithEnums)materializer.Materialize(record, map, ordinals);
+            var entity = (UserWithEnums)materializer.Materialize(record, ordinals);
 
-            // Assert
             Assert.Equal(1, entity.Id);
             Assert.Equal(Role.Admin, entity.Role);
             Assert.Equal(Role.User, entity.OptionalRole);

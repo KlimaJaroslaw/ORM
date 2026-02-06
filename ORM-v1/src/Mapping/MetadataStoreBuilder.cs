@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Reflection;
 
 namespace ORM_v1.Mapping
@@ -13,18 +12,14 @@ namespace ORM_v1.Mapping
 
         public MetadataStoreBuilder AddAssembly(Assembly assembly)
         {
-            if (assembly == null)
-                throw new ArgumentNullException(nameof(assembly));
-
+            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
             _assemblies.Add(assembly);
             return this;
         }
 
         public MetadataStoreBuilder AddAssemblies(IEnumerable<Assembly> assemblies)
         {
-            if (assemblies == null)
-                throw new ArgumentNullException(nameof(assemblies));
-
+            if (assemblies == null) throw new ArgumentNullException(nameof(assemblies));
             _assemblies.AddRange(assemblies);
             return this;
         }
@@ -47,9 +42,13 @@ namespace ORM_v1.Mapping
 
             foreach (var asm in _assemblies)
             {
-                var builder = new ModelBuilder(asm);
-                var maps = builder.BuildModel(_naming);
-
+                // Użycie refleksji do budowy modelu
+                IModelBuilder builder = new ReflectionModelBuilder(_naming);
+                // Użycie dyrektora do skonstruowania map
+                var director = new ModelDirector(builder);
+                // Konstruowanie map dla danej assembly
+                var maps = director.Construct(asm);
+                // Dodawanie map do zbioru wszystkich map
                 foreach (var kv in maps)
                 {
                     if (!allMaps.ContainsKey(kv.Key))

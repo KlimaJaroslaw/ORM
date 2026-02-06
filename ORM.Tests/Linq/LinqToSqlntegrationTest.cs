@@ -3,16 +3,23 @@ using ORM_v1.Mapping;
 using ORM_v1.Query;
 using Xunit;
 using System.Collections.Generic;
+using System.Reflection;
 
 namespace ORM.Tests.Linq
 {
     public class QueryModelPipelineTests
     {
+        private static IReadOnlyDictionary<Type, EntityMap> BuildModel(Assembly asm)
+        {
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            return director.Construct(asm);
+        }
         [Fact]
         public void QueryModel_Should_Generate_SQL_From_LinqLike_Scenario()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            var maps = BuildModel(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
             var query = new QueryModel

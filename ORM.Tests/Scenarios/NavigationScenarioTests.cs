@@ -9,10 +9,12 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Identify_Navigation_Properties_And_Not_Assign_ColumnName()
         {
-            var builder = new ModelBuilder(typeof(PostWithAuthor).Assembly);
-            var naming = new PascalCaseNamingStrategy();
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
 
-            var maps = builder.BuildModel(naming);
+            IReadOnlyDictionary<Type, EntityMap> maps = director.Construct(typeof(PostWithAuthor).Assembly);
+
             var map = maps[typeof(PostWithAuthor)];
 
             var navProp = map.NavigationProperties.First();

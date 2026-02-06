@@ -20,8 +20,10 @@ namespace ORM.Tests.SqlGeneration
 
         private EntityMap CreateUserEntityMap()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(_naming);
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            var maps = director.Construct(typeof(UserTestEntity).Assembly);
             return maps[typeof(UserTestEntity)];
         }
 

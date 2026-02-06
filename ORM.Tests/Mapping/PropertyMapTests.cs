@@ -14,7 +14,7 @@ namespace ORM.Tests.Mapping
         public void PropertyMap_Should_Respect_ColumnAttribute()
         {
             var prop = typeof(UserTestEntity).GetProperty(nameof(UserTestEntity.FirstName))!;
-            var map = PropertyMap.FromPropertyInfo(prop, _naming);
+            var map = PropertyMap.FromPropertyInfo(prop, _naming, t => false);
 
             Assert.Equal("first_name", map.ColumnName);
         }
@@ -23,7 +23,7 @@ namespace ORM.Tests.Mapping
         public void PropertyMap_Should_Identify_Key_Property()
         {
             var prop = typeof(UserTestEntity).GetProperty(nameof(UserTestEntity.Id))!;
-            var map = PropertyMap.FromPropertyInfo(prop, _naming);
+            var map = PropertyMap.FromPropertyInfo(prop, _naming, t => false);
 
             Assert.True(map.IsKey);
         }
@@ -32,7 +32,7 @@ namespace ORM.Tests.Mapping
         public void PropertyMap_Should_Ignore_Properties_With_IgnoreAttribute()
         {
             var prop = typeof(UserTestEntity).GetProperty(nameof(UserTestEntity.IgnoredProp))!;
-            var map = PropertyMap.FromPropertyInfo(prop, _naming);
+            var map = PropertyMap.FromPropertyInfo(prop, _naming, t => false);
 
             Assert.True(map.IsIgnored);
         }

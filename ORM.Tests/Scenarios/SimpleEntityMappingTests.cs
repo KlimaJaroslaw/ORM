@@ -9,10 +9,11 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Map_Entity_With_Table_And_Columns()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var naming = new PascalCaseNamingStrategy();
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
 
-            var maps = builder.BuildModel(naming);
+            IReadOnlyDictionary<Type, EntityMap> maps = director.Construct(typeof(UserTestEntity).Assembly);
             var map = maps[typeof(UserTestEntity)];
 
             Assert.Equal("Users", map.TableName);

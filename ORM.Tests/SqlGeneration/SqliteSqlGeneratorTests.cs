@@ -1,6 +1,7 @@
 using ORM.Tests.TestEntities;
 using ORM_v1.Mapping;
 using ORM_v1.Query;
+using ORM_v1.Mapping.Strategies;
 
 namespace ORM.Tests.SqlGeneration
 {
@@ -17,8 +18,10 @@ namespace ORM.Tests.SqlGeneration
 
         private EntityMap CreateUserEntityMap()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(_naming);
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            var maps = director.Construct(typeof(UserTestEntity).Assembly);
             return maps[typeof(UserTestEntity)];
         }
 
@@ -43,14 +46,27 @@ namespace ORM.Tests.SqlGeneration
                     isKey,
                     isIgnored: false,
                     isNavigation: false,
-                    navigationPropertyName: null
+                    isCollection: false,
+                    targetType: null,
+                    foreignKeyName: null
+                    // navigationPropertyName: null
                 );
 
                 props.Add(prop);
                 if (isKey) keyProp = prop;
             }
 
-            var map = new EntityMap(type, tableName, keyProp!, props);
+            // var map = new EntityMap(type, tableName, keyProp!, props);
+
+            var map = new EntityMap(
+                type,
+                tableName,
+                isAbstract: false,
+                baseMap: null,
+                strategy: new TablePerConcreteClassStrategy(),
+                keyProperty: keyProp!,
+                allProperties: props
+            );
 
             if (hasAutoIncrement)
             {
