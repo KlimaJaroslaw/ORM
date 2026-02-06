@@ -1,5 +1,6 @@
 ﻿using ORM_v1.Configuration;
 using ORM_v1.Mapping;
+using ORM_v1.Mapping.Strategies;
 using ORM_v1.Query;
 using System.Collections.Concurrent;
 using System.Data;
@@ -180,23 +181,26 @@ public class DbContext : IDisposable
                     cmd.CommandText = sqlQuery.Sql;
                     cmd.Transaction = transaction;
                     
-                    // Add parameters
                     foreach (var param in sqlQuery.Parameters)
                     {
                         AddParameter(cmd, param.Key, param.Value);
                     }
 
-                    if (entry.State == EntityState.Added && map.HasAutoIncrementKey)
+                    var hasAutoIncrement = map.InheritanceStrategy is TablePerHierarchyStrategy 
+                        ? map.RootMap.HasAutoIncrementKey 
+                        : map.HasAutoIncrementKey;
+
+                    var isRootAutoIncrement = map.InheritanceStrategy is TablePerTypeStrategy && map.BaseMap != null
+                        ? GetRootMap(map).HasAutoIncrementKey
+                        : hasAutoIncrement;
+
+                    if (entry.State == EntityState.Added && isRootAutoIncrement)
                     {
-                        // For Insert with AutoIncrement we need to retrieve the ID
-                        // SqliteSqlGenerator adds "; SELECT last_insert_rowid();" at the end
                         var newId = cmd.ExecuteScalar();
                         
-                        // Convert ID type (usually long in SQLite) to C# type
                         var targetType = map.KeyProperty.PropertyType;
                         var convertedId = Convert.ChangeType(newId, targetType);
                         
-                        // Reflection - set ID in the object
                         map.KeyProperty.PropertyInfo.SetValue(entry.Entity, convertedId);
                     }
                     else
@@ -214,6 +218,16 @@ public class DbContext : IDisposable
             transaction.Rollback();
             throw;
         }
+    }
+
+    private EntityMap GetRootMap(EntityMap map)
+    {
+        var current = map;
+        while (current.BaseMap != null)
+        {
+            current = current.BaseMap;
+        }
+        return current;
     }
 
     private void AddParameter(IDbCommand command, string name, object? value)
@@ -255,9 +269,19 @@ public class DatabaseFacade
         var connection = _context.GetConnection();
         var metadataStore = _context.GetConfiguration().MetadataStore;
 
+        var processedTables = new HashSet<string>();
+
         foreach (var map in metadataStore.GetAllMaps())
         {
-            CreateTable(connection, map);
+            if (ShouldCreateTable(map))
+            {
+                var tableName = GetTableNameForCreation(map);
+                
+                if (processedTables.Add(tableName))
+                {
+                    CreateTable(connection, map, metadataStore);
+                }
+            }
         }
     }
 
@@ -269,44 +293,191 @@ public class DatabaseFacade
         var connection = _context.GetConnection();
         var metadataStore = _context.GetConfiguration().MetadataStore;
 
+        var tablesToDrop = new HashSet<string>();
+
         foreach (var map in metadataStore.GetAllMaps())
         {
+            tablesToDrop.Add(map.TableName);
+        }
+
+        using var disableFk = connection.CreateCommand();
+        disableFk.CommandText = "PRAGMA foreign_keys = OFF";
+        disableFk.ExecuteNonQuery();
+
+        foreach (var tableName in tablesToDrop)
+        {
             using var command = connection.CreateCommand();
-            command.CommandText = $"DROP TABLE IF EXISTS \"{map.TableName}\"";
+            command.CommandText = $"DROP TABLE IF EXISTS \"{tableName}\"";
             command.ExecuteNonQuery();
         }
+
+        using var enableFk = connection.CreateCommand();
+        enableFk.CommandText = "PRAGMA foreign_keys = ON";
+        enableFk.ExecuteNonQuery();
     }
 
-    private void CreateTable(IDbConnection connection, EntityMap map)
+    private bool ShouldCreateTable(EntityMap map)
     {
-        var createTableSql = GenerateCreateTableSql(map);
+        if (map.InheritanceStrategy is TablePerHierarchyStrategy)
+        {
+            return map.IsHierarchyRoot;
+        }
+        else if (map.InheritanceStrategy is TablePerTypeStrategy)
+        {
+            return true;
+        }
+        else if (map.InheritanceStrategy is TablePerConcreteClassStrategy)
+        {
+            return !map.IsAbstract;
+        }
+
+        return true;
+    }
+
+    private string GetTableNameForCreation(EntityMap map)
+    {
+        if (map.InheritanceStrategy is TablePerHierarchyStrategy)
+        {
+            return map.RootMap.TableName;
+        }
+        return map.TableName;
+    }
+
+    private void CreateTable(IDbConnection connection, EntityMap map, IMetadataStore metadataStore)
+    {
+        var createTableSql = GenerateCreateTableSql(map, metadataStore);
         
         using var command = connection.CreateCommand();
         command.CommandText = createTableSql;
         command.ExecuteNonQuery();
     }
 
-    private string GenerateCreateTableSql(EntityMap map)
+    private string GenerateCreateTableSql(EntityMap map, IMetadataStore metadataStore)
     {
         var columns = new List<string>();
+        var processedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var prop in map.ScalarProperties)
+        if (map.InheritanceStrategy is TablePerHierarchyStrategy)
         {
-            var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+            var rootMap = map.RootMap;
+            var allMapsInHierarchy = GetAllMapsInTPHHierarchy(rootMap, metadataStore);
 
-            if (prop == map.KeyProperty)
+            foreach (var hierarchyMap in allMapsInHierarchy)
             {
-                columnDef += " PRIMARY KEY";
-                if (map.HasAutoIncrementKey)
+                foreach (var prop in hierarchyMap.ScalarProperties)
                 {
-                    columnDef += " AUTOINCREMENT";
+                    if (processedColumns.Add(prop.ColumnName!))
+                    {
+                        var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+                        if (string.Equals(prop.ColumnName, rootMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            columnDef += " PRIMARY KEY";
+                            if (rootMap.HasAutoIncrementKey)
+                            {
+                                columnDef += " AUTOINCREMENT";
+                            }
+                        }
+
+                        columns.Add(columnDef);
+                    }
                 }
             }
 
-            columns.Add(columnDef);
+            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+            {
+                if (processedColumns.Add(tphStrategy.DiscriminatorColumn))
+                {
+                    columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
+                }
+            }
+
+            return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
+        }
+        else if (map.InheritanceStrategy is TablePerTypeStrategy)
+        {
+            if (map.BaseMap == null)
+            {
+                foreach (var prop in map.ScalarProperties)
+                {
+                    var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+                    if (prop == map.KeyProperty)
+                    {
+                        columnDef += " PRIMARY KEY";
+                        if (map.HasAutoIncrementKey)
+                        {
+                            columnDef += " AUTOINCREMENT";
+                        }
+                    }
+
+                    columns.Add(columnDef);
+                }
+            }
+            else
+            {
+                foreach (var prop in map.ScalarProperties)
+                {
+                    var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp => 
+                        string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                    if (!isInheritedColumn)
+                    {
+                        columns.Add($"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}");
+                    }
+                    else if (string.Equals(prop.ColumnName, map.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        columns.Add($"\"{prop.ColumnName}\" INTEGER PRIMARY KEY");
+                    }
+                }
+
+                columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
+            }
+
+            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+        }
+        else
+        {
+            foreach (var prop in map.ScalarProperties)
+            {
+                var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+                if (prop == map.KeyProperty)
+                {
+                    columnDef += " PRIMARY KEY";
+                    if (map.HasAutoIncrementKey)
+                    {
+                        columnDef += " AUTOINCREMENT";
+                    }
+                }
+
+                columns.Add(columnDef);
+            }
+
+            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+            {
+                columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
+            }
+
+            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+        }
+    }
+
+    private List<EntityMap> GetAllMapsInTPHHierarchy(EntityMap rootMap, IMetadataStore metadataStore)
+    {
+        var result = new List<EntityMap> { rootMap };
+        
+        foreach (var map in metadataStore.GetAllMaps())
+        {
+            if (map != rootMap && 
+                map.InheritanceStrategy is TablePerHierarchyStrategy &&
+                map.RootMap == rootMap)
+            {
+                result.Add(map);
+            }
         }
 
-        return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+        return result;
     }
 
     private string GetSqliteType(Type type)
@@ -318,7 +489,7 @@ public class DatabaseFacade
         if (type == typeof(decimal) || type == typeof(double) || type == typeof(float))
             return "REAL";
         if (type == typeof(DateTime))
-            return "TEXT"; // SQLite stores dates as text
+            return "TEXT";
         
         return "TEXT";
     }
