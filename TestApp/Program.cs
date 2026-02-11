@@ -36,6 +36,11 @@ class Program
             Console.WriteLine("│ 8. Table Per Type (TPT)                                │");
             Console.WriteLine("│ 9. Table Per Concrete Class (TPC)                      │");
             Console.WriteLine("│                                                        │");
+            Console.WriteLine("│ ZAAWANSOWANE FUNKCJE:                                  │");
+            Console.WriteLine("│ A. Navigation Properties + ThenInclude                 │");
+            Console.WriteLine("│ B. Auto-Tracking Demo                                  │");
+            Console.WriteLine("│ C. WHERE Filtering                                     │");
+            Console.WriteLine("│                                                        │");
             Console.WriteLine("│ 0. Wyjście                                             │");
             Console.WriteLine("└────────────────────────────────────────────────────────┘");
             Console.Write("\nTwój wybór: ");
@@ -76,14 +81,34 @@ class Program
                 case "0":
                     Console.WriteLine("\nDziękujemy za użycie ORM-v1 Demo!");
                     return;
+                case "A":
+                case "a":
+                    NavigationPropertiesDemo.RunDemo();
+                    break;
+                case "B":
+                case "b":
+                    AutoTrackingDemo.Run();
+                    break;
+                case "C":
+                case "c":
+                    WhereFilteringDemo.Run();
+                    break;
                 default:
                     Console.WriteLine("\n⚠ Nieprawidłowy wybór. Spróbuj ponownie.");
                     continue;
             }
 
-            Console.WriteLine("\n\nNaciśnij dowolny klawisz, aby wrócić do menu...");
-            Console.ReadKey();
-            Console.Clear();
+            // Pauza tylko jeśli nie używamy redirected input
+            if (!Console.IsInputRedirected)
+            {
+                Console.WriteLine("\n\nNaciśnij dowolny klawisz, aby wrócić do menu...");
+                Console.ReadKey();
+                Console.Clear();
+            }
+            else
+            {
+                Console.WriteLine("\n═══════════════════════════════════════════════════════════");
+            }
         }
     }
 
@@ -113,20 +138,20 @@ class Program
 
             // 3. Dodawanie danych - Kategorie
             Console.WriteLine("┌─ 2. DODAWANIE KATEGORII PRODUKTÓW ────────────────────┐");
-            var electronics = new Category 
-            { 
-                Name = "Elektronika", 
-                Description = "Urządzenia elektroniczne i akcesoria" 
+            var electronics = new Category
+            {
+                Name = "Elektronika",
+                Description = "Urządzenia elektroniczne i akcesoria"
             };
-            var books = new Category 
-            { 
-                Name = "Książki", 
-                Description = "Książki i publikacje" 
+            var books = new Category
+            {
+                Name = "Książki",
+                Description = "Książki i publikacje"
             };
-            var clothing = new Category 
-            { 
-                Name = "Odzież", 
-                Description = "Ubrania i akcesoria" 
+            var clothing = new Category
+            {
+                Name = "Odzież",
+                Description = "Ubrania i akcesoria"
             };
 
             context.Categories.Add(electronics);
@@ -160,26 +185,26 @@ class Program
             Console.WriteLine("┌─ 4. DODAWANIE KLIENTÓW ───────────────────────────────┐");
             var customers = new[]
             {
-                new Customer 
-                { 
-                    FirstName = "Jan", 
-                    LastName = "Kowalski", 
+                new Customer
+                {
+                    FirstName = "Jan",
+                    LastName = "Kowalski",
                     Email = "jan.kowalski@example.com",
                     RegistrationDate = DateTime.Now.AddMonths(-6),
                     Status = CustomerStatus.Premium
                 },
-                new Customer 
-                { 
-                    FirstName = "Anna", 
-                    LastName = "Nowak", 
+                new Customer
+                {
+                    FirstName = "Anna",
+                    LastName = "Nowak",
                     Email = "anna.nowak@example.com",
                     RegistrationDate = DateTime.Now.AddMonths(-3),
                     Status = CustomerStatus.Active
                 },
-                new Customer 
-                { 
-                    FirstName = "Piotr", 
-                    LastName = "Wiśniewski", 
+                new Customer
+                {
+                    FirstName = "Piotr",
+                    LastName = "Wiśniewski",
                     Email = "piotr.wisniewski@example.com",
                     RegistrationDate = DateTime.Now.AddDays(-10),
                     Status = CustomerStatus.Active
@@ -198,23 +223,23 @@ class Program
             Console.WriteLine("┌─ 5. DODAWANIE ZAMÓWIEŃ ───────────────────────────────┐");
             var orders = new[]
             {
-                new Order 
-                { 
-                    CustomerId = customers[0].Id, 
+                new Order
+                {
+                    CustomerId = customers[0].Id,
                     OrderDate = DateTime.Now.AddDays(-5),
-                    TotalAmount = 6489.97m 
+                    TotalAmount = 6489.97m
                 },
-                new Order 
-                { 
-                    CustomerId = customers[1].Id, 
+                new Order
+                {
+                    CustomerId = customers[1].Id,
                     OrderDate = DateTime.Now.AddDays(-2),
-                    TotalAmount = 209.98m 
+                    TotalAmount = 209.98m
                 },
-                new Order 
-                { 
-                    CustomerId = customers[2].Id, 
+                new Order
+                {
+                    CustomerId = customers[2].Id,
                     OrderDate = DateTime.Now.AddDays(-1),
-                    TotalAmount = 2499.00m 
+                    TotalAmount = 2499.00m
                 }
             };
 
@@ -261,12 +286,12 @@ class Program
             {
                 var oldStock = productToUpdate.Stock;
                 var oldPrice = productToUpdate.Price;
-                
+
                 productToUpdate.Stock = 15;
                 productToUpdate.Price = 5799.99m;
                 context.Products.Update(productToUpdate);
                 context.SaveChanges();
-                
+
                 Console.WriteLine($"│ ✓ {productToUpdate.Name,-44}│");
                 Console.WriteLine($"│   Stock: {oldStock} → {productToUpdate.Stock}                                    │");
                 Console.WriteLine($"│   Cena: {oldPrice:C} → {productToUpdate.Price:C}                    │");
@@ -282,7 +307,7 @@ class Program
                 customerToUpdate.Status = CustomerStatus.Premium;
                 context.Customers.Update(customerToUpdate);
                 context.SaveChanges();
-                
+
                 Console.WriteLine($"│ ✓ {customerToUpdate.FullName,-44}│");
                 Console.WriteLine($"│   Status: {oldStatus} → {customerToUpdate.Status}                  │");
             }
@@ -320,7 +345,7 @@ class Program
             var trackedCount = context.ChangeTracker.Entries.Count();
             var modifiedCount = context.ChangeTracker.Entries.Count(e => e.State == EntityState.Modified);
             var unchangedCount = context.ChangeTracker.Entries.Count(e => e.State == EntityState.Unchanged);
-            
+
             Console.WriteLine($"│ • Śledzonych encji:    {trackedCount,3}                            │");
             Console.WriteLine($"│ • Zmienionych:         {modifiedCount,3}                            │");
             Console.WriteLine($"│ • Niemodyfikowanych:   {unchangedCount,3}                            │");
@@ -330,7 +355,7 @@ class Program
             Console.WriteLine("┌─ 14. KATEGORIE Z PRODUKTAMI ──────────────────────────┐");
             var allCategories = context.Categories.All().ToList();
             var allProductsList = context.Products.All().ToList();
-            
+
             foreach (var cat in allCategories)
             {
                 var productCount = allProductsList.Count(p => p.CategoryId == cat.Id);
@@ -342,7 +367,7 @@ class Program
             Console.WriteLine("┌─ 15. KLIENCI Z ZAMÓWIENIAMI ──────────────────────────┐");
             var allCustomers = context.Customers.All().ToList();
             var allOrders = context.Orders.All().ToList();
-            
+
             foreach (var cust in allCustomers)
             {
                 var customerOrders = allOrders.Where(o => o.CustomerId == cust.Id).ToList();

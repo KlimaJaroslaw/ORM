@@ -42,4 +42,47 @@ public class ChangeTracker
             entry.State = EntityState.Unchanged;
         }
     }
+
+    /// <summary>
+    /// Sprawdza czy encja jest już śledzona (po referencji).
+    /// </summary>
+    public bool IsTracked(object entity)
+    {
+        return _entries.ContainsKey(entity);
+    }
+
+    /// <summary>
+    /// Pobiera śledzoną encję po kluczu głównym lub null jeśli nie znaleziono.
+    /// Używane dla Identity Map pattern w Include().
+    /// </summary>
+    public object? FindTracked(Type entityType, object keyValue)
+    {
+        foreach (var entry in _entries.Values)
+        {
+            if (entry.Entity.GetType() == entityType)
+            {
+                // Porównaj klucz główny - użyjemy prostego reflection
+                var keyProp = entityType.GetProperties()
+                    .FirstOrDefault(p => p.Name == "Id" || p.Name == entityType.Name + "Id");
+
+                if (keyProp != null)
+                {
+                    var trackedKeyValue = keyProp.GetValue(entry.Entity);
+                    if (trackedKeyValue != null && trackedKeyValue.Equals(keyValue))
+                    {
+                        return entry.Entity;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Generyczna wersja FindTracked - zwraca poprawny typ.
+    /// </summary>
+    public T? FindTracked<T>(object keyValue) where T : class
+    {
+        return FindTracked(typeof(T), keyValue) as T;
+    }
 }

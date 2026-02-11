@@ -18,23 +18,23 @@ public class SqliteSqlGenerator : ISqlGenerator
     public SqlQuery GenerateSelect(EntityMap map, object id)
     {
         var builder = new SqlQueryBuilder();
-        
+
         var columns = GetColumnsForSelect(map);
         var columnsFiltered = FilterNullStrings(columns);
-        
+
         if (columnsFiltered.Count() == 0)
             throw new InvalidOperationException("No columns to select.");
 
         builder.Select(columnsFiltered);
-        
+
         BuildFromClauseWithInheritance(builder, map);
 
         var whereConditions = new List<string>();
-        
-        var keyColumnRef = map.InheritanceStrategy is TablePerTypeStrategy 
+
+        var keyColumnRef = map.InheritanceStrategy is TablePerTypeStrategy
             ? $"{QuoteIdentifier($"t{map.EntityType.Name}")}.{QuoteIdentifier(map.KeyProperty.ColumnName!)}"
             : QuoteIdentifier(map.KeyProperty.ColumnName!);
-        
+
         whereConditions.Add($"{keyColumnRef} = @id");
 
         if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy && !string.IsNullOrEmpty(map.Discriminator))
@@ -65,7 +65,7 @@ public class SqliteSqlGenerator : ISqlGenerator
     public SqlQuery GenerateSelectAll(EntityMap map)
     {
         var builder = new SqlQueryBuilder();
-        
+
         var columns = GetColumnsForSelect(map);
         var columnsFiltered = FilterNullStrings(columns);
 
@@ -73,7 +73,7 @@ public class SqliteSqlGenerator : ISqlGenerator
             throw new InvalidOperationException("No columns to select.");
 
         builder.Select(columnsFiltered);
-        
+
         BuildFromClauseWithInheritance(builder, map);
 
         var parameters = new Dictionary<string, object>();
@@ -102,12 +102,12 @@ public class SqliteSqlGenerator : ISqlGenerator
             return GenerateInsertForTablePerType(map, entity);
         }
 
-        var keyPropertyName = map.InheritanceStrategy is TablePerHierarchyStrategy 
-            ? map.RootMap.KeyProperty.ColumnName 
+        var keyPropertyName = map.InheritanceStrategy is TablePerHierarchyStrategy
+            ? map.RootMap.KeyProperty.ColumnName
             : map.KeyProperty.ColumnName;
 
-        var shouldSkipKey = map.InheritanceStrategy is TablePerHierarchyStrategy 
-            ? map.RootMap.HasAutoIncrementKey 
+        var shouldSkipKey = map.InheritanceStrategy is TablePerHierarchyStrategy
+            ? map.RootMap.HasAutoIncrementKey
             : map.HasAutoIncrementKey;
 
         var propsToInsert = map.ScalarProperties
@@ -133,7 +133,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                .Values(paramNames);
 
         var sqlText = builder.ToString();
-        
+
         if (shouldSkipKey)
         {
             sqlText += "; SELECT last_insert_rowid();";
@@ -165,7 +165,7 @@ public class SqliteSqlGenerator : ISqlGenerator
 
         var currentMap = map;
         var hierarchy = new List<EntityMap>();
-        
+
         while (currentMap != null)
         {
             hierarchy.Add(currentMap);
@@ -181,19 +181,19 @@ public class SqliteSqlGenerator : ISqlGenerator
         {
             var hierarchyMap = hierarchy[i];
             var propsToInsert = new List<PropertyMap>();
-            
+
             if (hierarchyMap.BaseMap == null)
             {
                 propsToInsert = hierarchyMap.ScalarProperties
-                    .Where(p => !(string.Equals(p.ColumnName, hierarchyMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase) 
+                    .Where(p => !(string.Equals(p.ColumnName, hierarchyMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase)
                         && hierarchyMap.HasAutoIncrementKey))
                     .ToList();
             }
             else
             {
-                var keyProp = hierarchyMap.ScalarProperties.FirstOrDefault(p => 
+                var keyProp = hierarchyMap.ScalarProperties.FirstOrDefault(p =>
                     string.Equals(p.ColumnName, hierarchyMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase));
-                
+
                 if (keyProp != null)
                 {
                     propsToInsert.Add(keyProp);
@@ -201,7 +201,7 @@ public class SqliteSqlGenerator : ISqlGenerator
 
                 foreach (var prop in hierarchyMap.ScalarProperties)
                 {
-                    var isInheritedColumn = hierarchyMap.BaseMap.ScalarProperties.Any(bp => 
+                    var isInheritedColumn = hierarchyMap.BaseMap.ScalarProperties.Any(bp =>
                         string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
 
                     if (!isInheritedColumn && prop != keyProp)
@@ -218,7 +218,7 @@ public class SqliteSqlGenerator : ISqlGenerator
 
                 foreach (var prop in propsToInsert)
                 {
-                    if (string.Equals(prop.ColumnName, hierarchyMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase) 
+                    if (string.Equals(prop.ColumnName, hierarchyMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase)
                         && hierarchyMap.BaseMap != null)
                     {
                         paramNames.Add("(SELECT last_insert_rowid())");
@@ -230,7 +230,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                 }
 
                 var insertSql = $"INSERT INTO {QuoteIdentifier(hierarchyMap.TableName)} ({string.Join(", ", columnNames)}) VALUES ({string.Join(", ", paramNames)})";
-                
+
                 sqlStatements.Add(insertSql);
 
                 foreach (var prop in propsToInsert)
@@ -288,7 +288,7 @@ public class SqliteSqlGenerator : ISqlGenerator
         }
 
         var parameters = new Dictionary<string, object>();
-        
+
         foreach (var prop in propsToUpdate)
         {
             var value = prop.PropertyInfo.GetValue(entity);
@@ -317,7 +317,7 @@ public class SqliteSqlGenerator : ISqlGenerator
 
         var currentMap = map;
         var hierarchy = new List<EntityMap>();
-        
+
         while (currentMap != null)
         {
             hierarchy.Add(currentMap);
@@ -344,7 +344,7 @@ public class SqliteSqlGenerator : ISqlGenerator
             {
                 foreach (var prop in hierarchyMap.ScalarProperties)
                 {
-                    var isInheritedColumn = hierarchyMap.BaseMap.ScalarProperties.Any(bp => 
+                    var isInheritedColumn = hierarchyMap.BaseMap.ScalarProperties.Any(bp =>
                         string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
 
                     if (!isInheritedColumn)
@@ -356,11 +356,11 @@ public class SqliteSqlGenerator : ISqlGenerator
 
             if (propsToUpdate.Any())
             {
-                var assignments = propsToUpdate.Select(p => 
+                var assignments = propsToUpdate.Select(p =>
                     $"{QuoteIdentifier(p.ColumnName!)} = @{p.PropertyInfo.Name}");
 
                 var updateSql = $"UPDATE {QuoteIdentifier(hierarchyMap.TableName)} SET {string.Join(", ", assignments)} WHERE {QuoteIdentifier(hierarchyMap.KeyProperty.ColumnName!)} = {keyParamName}";
-                
+
                 sqlStatements.Add(updateSql);
 
                 foreach (var prop in propsToUpdate)
@@ -425,10 +425,10 @@ public class SqliteSqlGenerator : ISqlGenerator
     private SqlQuery GenerateDeleteForTablePerType(EntityMap map, object entity)
     {
         var sqlStatements = new List<string>();
-        
+
         var currentMap = map;
         var hierarchy = new List<EntityMap>();
-        
+
         while (currentMap != null)
         {
             hierarchy.Add(currentMap);
@@ -457,14 +457,14 @@ public class SqliteSqlGenerator : ISqlGenerator
     {
         var builder = new SqlQueryBuilder();
         var parameters = new Dictionary<string, object>(queryModel.Parameters);
-                
+
         bool hasJoins = queryModel.Joins.Any();
-        string? primaryAlias = hasJoins && string.IsNullOrEmpty(queryModel.PrimaryEntityAlias) 
-            ? map.TableName.ToLowerInvariant() 
+        string? primaryAlias = hasJoins && string.IsNullOrEmpty(queryModel.PrimaryEntityAlias)
+            ? map.TableName.ToLowerInvariant()
             : queryModel.PrimaryEntityAlias;
-       
+
         var selectColumns = BuildSelectColumns(map, queryModel, primaryAlias);
-        
+
         if (queryModel.Distinct)
         {
             builder.SelectDistinct(selectColumns);
@@ -473,17 +473,17 @@ public class SqliteSqlGenerator : ISqlGenerator
         {
             builder.Select(selectColumns);
         }
-        
-        builder.FromWithAlias(QuoteIdentifier(map.TableName), 
-            string.IsNullOrEmpty(primaryAlias) 
-                ? null 
+
+        builder.FromWithAlias(QuoteIdentifier(map.TableName),
+            string.IsNullOrEmpty(primaryAlias)
+                ? null
                 : QuoteIdentifier(primaryAlias));
 
         if (map.InheritanceStrategy is TablePerTypeStrategy && map.BaseMap != null)
         {
             BuildTablePerTypeJoins(builder, map, primaryAlias);
         }
-        
+
         foreach (var join in queryModel.Joins)
         {
             var joinTable = QuoteIdentifier(join.JoinedEntity.TableName);
@@ -506,24 +506,24 @@ public class SqliteSqlGenerator : ISqlGenerator
                     break;
             }
         }
-        
+
         if (!string.IsNullOrEmpty(queryModel.WhereClause))
         {
             builder.Where(queryModel.WhereClause);
         }
-        
+
         if (queryModel.GroupByColumns.Any())
         {
             var groupColumns = queryModel.GroupByColumns
                 .Select(p => BuildColumnReference(p, primaryAlias));
             builder.GroupBy(groupColumns);
         }
-        
+
         if (!string.IsNullOrEmpty(queryModel.HavingClause))
         {
             builder.Having(queryModel.HavingClause);
         }
-        
+
         if (queryModel.OrderBy.Any())
         {
             var orderClauses = queryModel.OrderBy.Select(o =>
@@ -533,7 +533,7 @@ public class SqliteSqlGenerator : ISqlGenerator
             });
             builder.OrderBy(orderClauses);
         }
-        
+
         if (queryModel.Take.HasValue)
         {
             builder.Limit(queryModel.Take.Value);
@@ -554,45 +554,45 @@ public class SqliteSqlGenerator : ISqlGenerator
     private IEnumerable<string> GetColumnsForSelect(EntityMap map)
     {
         var columns = new List<string>();
-        
+
         if (map.InheritanceStrategy is TablePerTypeStrategy && map.BaseMap != null)
         {
             var derivedAlias = $"t{map.EntityType.Name}";
-            
+
             foreach (var prop in map.ScalarProperties)
             {
                 if (!string.IsNullOrEmpty(prop.ColumnName))
                 {
-                    var isDerivedColumn = !map.BaseMap.ScalarProperties.Any(bp => 
+                    var isDerivedColumn = !map.BaseMap.ScalarProperties.Any(bp =>
                         string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
-                    
+
                     if (isDerivedColumn)
                     {
                         columns.Add($"{QuoteIdentifier(derivedAlias)}.{QuoteIdentifier(prop.ColumnName)}");
                     }
                 }
             }
-            
+
             var current = map.BaseMap;
             while (current != null)
             {
                 var baseAlias = $"t{current.EntityType.Name}";
-                
+
                 foreach (var prop in current.ScalarProperties)
                 {
                     if (!string.IsNullOrEmpty(prop.ColumnName))
                     {
-                        var isInherited = current.BaseMap == null || 
-                            !current.BaseMap.ScalarProperties.Any(bp => 
+                        var isInherited = current.BaseMap == null ||
+                            !current.BaseMap.ScalarProperties.Any(bp =>
                                 string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
-                        
+
                         if (isInherited)
                         {
                             columns.Add($"{QuoteIdentifier(baseAlias)}.{QuoteIdentifier(prop.ColumnName)}");
                         }
                     }
                 }
-                
+
                 current = current.BaseMap;
             }
         }
@@ -633,11 +633,11 @@ public class SqliteSqlGenerator : ISqlGenerator
     {
         var current = map.BaseMap;
         int level = 0;
-        
+
         while (current != null)
         {
             var baseAlias = $"t{current.EntityType.Name}";
-            
+
             var leftKey = string.IsNullOrEmpty(primaryAlias)
                 ? QuoteIdentifier(map.KeyProperty.ColumnName!)
                 : $"{QuoteIdentifier(primaryAlias)}.{QuoteIdentifier(map.KeyProperty.ColumnName!)}";
@@ -647,25 +647,25 @@ public class SqliteSqlGenerator : ISqlGenerator
             var onCondition = $"{leftKey} = {rightKey}";
 
             builder.InnerJoin(QuoteIdentifier(current.TableName), QuoteIdentifier(baseAlias), onCondition);
-            
+
             primaryAlias = baseAlias;
             current = current.BaseMap;
             level++;
         }
     }
-   
+
     private IEnumerable<string> BuildSelectColumns(EntityMap map, QueryModel queryModel, string? tableAlias)
-    {        
+    {
         if (queryModel.Aggregates.Any())
         {
             var aggregateColumns = new List<string>();
-            
+
             foreach (var agg in queryModel.Aggregates)
             {
                 var aggSql = BuildAggregateFunction(agg, tableAlias);
                 aggregateColumns.Add(aggSql);
             }
-                        
+
             foreach (var groupCol in queryModel.GroupByColumns)
             {
                 var colName = BuildColumnReference(groupCol, tableAlias);
@@ -673,32 +673,77 @@ public class SqliteSqlGenerator : ISqlGenerator
             }
 
             return aggregateColumns;
-        }                
+        }
         else if (queryModel.SelectAllColumns || !queryModel.SelectColumns.Any())
         {
             var columns = new List<string>();
 
+            // Primary entity columns
             foreach (var prop in map.ScalarProperties)
             {
                 if (!string.IsNullOrEmpty(prop.ColumnName))
                 {
-                    var column = string.IsNullOrEmpty(tableAlias)
-                        ? QuoteIdentifier(prop.ColumnName)
-                        : $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)}";
-                    columns.Add(column);
+                    if (string.IsNullOrEmpty(tableAlias))
+                    {
+                        columns.Add(QuoteIdentifier(prop.ColumnName));
+                    }
+                    else if (queryModel.IncludeJoins.Any())
+                    {
+                        // Aliasuj kolumny aby uniknąć konfliktów nazw w JOIN
+                        var columnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)} AS {QuoteIdentifier(tableAlias + "_" + prop.ColumnName)}";
+                        columns.Add(columnWithAlias);
+                    }
+                    else
+                    {
+                        var column = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)}";
+                        columns.Add(column);
+                    }
                 }
             }
 
             if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
             {
-                var discColumn = string.IsNullOrEmpty(tableAlias)
-                    ? QuoteIdentifier(tphStrategy.DiscriminatorColumn)
-                    : $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)}";
-                columns.Add(discColumn);
+                if (string.IsNullOrEmpty(tableAlias))
+                {
+                    columns.Add(QuoteIdentifier(tphStrategy.DiscriminatorColumn));
+                }
+                else if (queryModel.IncludeJoins.Any())
+                {
+                    var discColumnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)} AS {QuoteIdentifier(tableAlias + "_" + tphStrategy.DiscriminatorColumn)}";
+                    columns.Add(discColumnWithAlias);
+                }
+                else
+                {
+                    var discColumn = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)}";
+                    columns.Add(discColumn);
+                }
+            }
+
+            // Include joined entity columns (eager loading)
+            foreach (var includeJoin in queryModel.IncludeJoins)
+            {
+                var joinedMap = includeJoin.Join.JoinedEntity;
+                var alias = includeJoin.TableAlias;
+
+                foreach (var prop in joinedMap.ScalarProperties)
+                {
+                    if (!string.IsNullOrEmpty(prop.ColumnName))
+                    {
+                        // Aliasuj kolumny aby uniknąć kolizji nazw
+                        var columnWithAlias = $"{QuoteIdentifier(alias)}.{QuoteIdentifier(prop.ColumnName)} AS {QuoteIdentifier(alias + "_" + prop.ColumnName)}";
+                        columns.Add(columnWithAlias);
+                    }
+                }
+
+                if (joinedMap.InheritanceStrategy is TablePerHierarchyStrategy joinedTph)
+                {
+                    var discColumnWithAlias = $"{QuoteIdentifier(alias)}.{QuoteIdentifier(joinedTph.DiscriminatorColumn)} AS {QuoteIdentifier(alias + "_" + joinedTph.DiscriminatorColumn)}";
+                    columns.Add(discColumnWithAlias);
+                }
             }
 
             return columns;
-        }                
+        }
         else
         {
             return queryModel.SelectColumns
@@ -709,9 +754,13 @@ public class SqliteSqlGenerator : ISqlGenerator
 
     private string BuildJoinCondition(JoinClause join, string? primaryAlias)
     {
-        var leftCol = string.IsNullOrEmpty(primaryAlias)
+        // ✅ Użyj ParentAlias jeśli jest ustawiony (dla ThenInclude)
+        // W przeciwnym razie użyj primaryAlias (dla prostego Include)
+        var leftAlias = join.ParentAlias ?? primaryAlias;
+
+        var leftCol = string.IsNullOrEmpty(leftAlias)
             ? QuoteIdentifier(join.LeftProperty.ColumnName!)
-            : $"{QuoteIdentifier(primaryAlias)}.{QuoteIdentifier(join.LeftProperty.ColumnName!)}";
+            : $"{QuoteIdentifier(leftAlias)}.{QuoteIdentifier(join.LeftProperty.ColumnName!)}";
 
         var rightCol = string.IsNullOrEmpty(join.Alias)
             ? QuoteIdentifier(join.RightProperty.ColumnName!)
@@ -749,7 +798,7 @@ public class SqliteSqlGenerator : ISqlGenerator
 
         string column;
         if (agg.Property == null)
-        {            
+        {
             column = "*";
         }
         else

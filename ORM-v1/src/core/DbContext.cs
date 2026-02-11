@@ -13,13 +13,13 @@ public class DbContext : IDisposable
     private readonly DbConfiguration _configuration;
     private readonly ConnectionFactory _connectionFactory;
     private readonly ISqlGenerator _sqlGenerator;
-    
+
     private IDbConnection? _connection;
     private bool _disposed;
 
     private static readonly ConcurrentDictionary<EntityMap, ObjectMaterializer> _materializerCache = new();
     public ChangeTracker ChangeTracker { get; } = new ChangeTracker();
-    
+
     // Database operations API (similar to EF Core)
     public DatabaseFacade Database { get; }
 
@@ -27,7 +27,7 @@ public class DbContext : IDisposable
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _connectionFactory = new ConnectionFactory(_configuration.ConnectionString);
-        
+
         _sqlGenerator = new SqliteSqlGenerator();
         Database = new DatabaseFacade(this);
     }
@@ -36,7 +36,7 @@ public class DbContext : IDisposable
     {
         return new DbSet<T>(this);
     }
-    
+
     private ObjectMaterializer GetMaterializer(EntityMap map)
     {
         return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m, _configuration.MetadataStore));
@@ -52,7 +52,7 @@ public class DbContext : IDisposable
         }
         return _connection;
     }
-    
+
     protected internal DbConfiguration GetConfiguration() => _configuration;
 
     public T? Find<T>(object id) where T : class
@@ -72,18 +72,18 @@ public class DbContext : IDisposable
         // Generate SQL query using the new interface
         var entityMap = _configuration.MetadataStore.GetMap<T>();
         var sqlQuery = _sqlGenerator.GenerateSelect(entityMap, id);
-        
+
         // Create and execute command
         var conn = GetConnection();
         using var command = conn.CreateCommand();
         command.CommandText = sqlQuery.Sql;
-        
+
         // Add parameters
         foreach (var param in sqlQuery.Parameters)
         {
             AddParameter(command, param.Key, param.Value);
         }
-        
+
         using var reader = command.ExecuteReader();
         if (reader.Read())
         {
@@ -97,36 +97,36 @@ public class DbContext : IDisposable
             }
 
             var entity = (T)materializer.Materialize(reader, ordinals);
-            
+
             ChangeTracker.Track(entity, EntityState.Unchanged);
             return entity;
         }
 
         return null;
     }
-    
+
     // Metoda pomocnicza dla DbSet.All() - tymczasowa, zanim wejdzie LINQ
     internal IEnumerable<T> SetInternal<T>() where T : class
     {
         var list = new List<T>();
         var entityMap = _configuration.MetadataStore.GetMap<T>();
-        
+
         // Generate SQL query using the new interface
         var sqlQuery = _sqlGenerator.GenerateSelectAll(entityMap);
-        
+
         // Create and execute command
         var conn = GetConnection();
         using var command = conn.CreateCommand();
         command.CommandText = sqlQuery.Sql;
-        
+
         // Add parameters (if any)
         foreach (var param in sqlQuery.Parameters)
         {
             AddParameter(command, param.Key, param.Value);
         }
-        
+
         using var reader = command.ExecuteReader();
-        
+
         var materializer = GetMaterializer(entityMap);
         int[] ordinals = new int[entityMap.ScalarProperties.Count];
         for (int i = 0; i < entityMap.ScalarProperties.Count; i++)
@@ -139,6 +139,19 @@ public class DbContext : IDisposable
         while (reader.Read())
         {
             var entity = (T)materializer.Materialize(reader, ordinals);
+
+            // Identity Map: sprawdź czy encja o tym kluczu już istnieje
+            var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(entity);
+            if (keyValue != null)
+            {
+                var tracked = ChangeTracker.FindTracked<T>(keyValue);
+                if (tracked != null)
+                {
+                    list.Add(tracked); // Użyj istniejącej instancji
+                    continue;
+                }
+            }
+
             ChangeTracker.Track(entity, EntityState.Unchanged);
             list.Add(entity);
         }
@@ -180,14 +193,14 @@ public class DbContext : IDisposable
                     using var cmd = conn.CreateCommand();
                     cmd.CommandText = sqlQuery.Sql;
                     cmd.Transaction = transaction;
-                    
+
                     foreach (var param in sqlQuery.Parameters)
                     {
                         AddParameter(cmd, param.Key, param.Value);
                     }
 
-                    var hasAutoIncrement = map.InheritanceStrategy is TablePerHierarchyStrategy 
-                        ? map.RootMap.HasAutoIncrementKey 
+                    var hasAutoIncrement = map.InheritanceStrategy is TablePerHierarchyStrategy
+                        ? map.RootMap.HasAutoIncrementKey
                         : map.HasAutoIncrementKey;
 
                     var isRootAutoIncrement = map.InheritanceStrategy is TablePerTypeStrategy && map.BaseMap != null
@@ -197,10 +210,10 @@ public class DbContext : IDisposable
                     if (entry.State == EntityState.Added && isRootAutoIncrement)
                     {
                         var newId = cmd.ExecuteScalar();
-                        
+
                         var targetType = map.KeyProperty.PropertyType;
                         var convertedId = Convert.ChangeType(newId, targetType);
-                        
+
                         map.KeyProperty.PropertyInfo.SetValue(entry.Entity, convertedId);
                     }
                     else
@@ -276,7 +289,7 @@ public class DatabaseFacade
             if (ShouldCreateTable(map))
             {
                 var tableName = GetTableNameForCreation(map);
-                
+
                 if (processedTables.Add(tableName))
                 {
                     CreateTable(connection, map, metadataStore);
@@ -346,7 +359,7 @@ public class DatabaseFacade
     private void CreateTable(IDbConnection connection, EntityMap map, IMetadataStore metadataStore)
     {
         var createTableSql = GenerateCreateTableSql(map, metadataStore);
-        
+
         using var command = connection.CreateCommand();
         command.CommandText = createTableSql;
         command.ExecuteNonQuery();
@@ -418,7 +431,7 @@ public class DatabaseFacade
             {
                 foreach (var prop in map.ScalarProperties)
                 {
-                    var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp => 
+                    var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp =>
                         string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
 
                     if (!isInheritedColumn)
@@ -466,10 +479,10 @@ public class DatabaseFacade
     private List<EntityMap> GetAllMapsInTPHHierarchy(EntityMap rootMap, IMetadataStore metadataStore)
     {
         var result = new List<EntityMap> { rootMap };
-        
+
         foreach (var map in metadataStore.GetAllMaps())
         {
-            if (map != rootMap && 
+            if (map != rootMap &&
                 map.InheritanceStrategy is TablePerHierarchyStrategy &&
                 map.RootMap == rootMap)
             {
@@ -490,7 +503,7 @@ public class DatabaseFacade
             return "REAL";
         if (type == typeof(DateTime))
             return "TEXT";
-        
+
         return "TEXT";
     }
 }

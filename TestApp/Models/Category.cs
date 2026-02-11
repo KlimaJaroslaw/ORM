@@ -12,4 +12,7 @@ public class Category
     public string Name { get; set; } = string.Empty;
 
     public string Description { get; set; } = string.Empty;
+
+    // Navigation property - kolekcja produktów w tej kategorii
+    public List<Product> Products { get; set; } = new();
 }
