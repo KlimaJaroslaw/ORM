@@ -12,6 +12,7 @@ class Program
 {
     static void Main(string[] args)
     {
+
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
         Console.WriteLine("║     ORM-v1 - Kompleksowa Aplikacja Demonstracyjna        ║");
@@ -22,12 +23,19 @@ class Program
             Console.WriteLine("\n┌────────────────────────────────────────────────────────┐");
             Console.WriteLine("│ Wybierz scenariusz demonstracyjny:                    │");
             Console.WriteLine("├────────────────────────────────────────────────────────┤");
+            Console.WriteLine("│ PODSTAWOWE FUNKCJE:                                    │");
             Console.WriteLine("│ 1. Pełna demonstracja - wszystkie możliwości ORM      │");
             Console.WriteLine("│ 2. Podstawowe operacje CRUD                            │");
             Console.WriteLine("│ 3. Change Tracker - śledzenie zmian                    │");
             Console.WriteLine("│ 4. Typy danych (Enum, DateTime, Decimal)              │");
             Console.WriteLine("│ 5. Atrybuty mapowania                                  │");
             Console.WriteLine("│ 6. Transakcje i SaveChanges                            │");
+            Console.WriteLine("│                                                        │");
+            Console.WriteLine("│ STRATEGIE DZIEDZICZENIA:                               │");
+            Console.WriteLine("│ 7. Table Per Hierarchy (TPH)                           │");
+            Console.WriteLine("│ 8. Table Per Type (TPT)                                │");
+            Console.WriteLine("│ 9. Table Per Concrete Class (TPC)                      │");
+            Console.WriteLine("│                                                        │");
             Console.WriteLine("│ 0. Wyjście                                             │");
             Console.WriteLine("└────────────────────────────────────────────────────────┘");
             Console.Write("\nTwój wybór: ");
@@ -55,6 +63,15 @@ class Program
                     break;
                 case "6":
                     TransactionDemo.Run();
+                    break;
+                case "7":
+                    TablePerHierarchyDemo.Run();
+                    break;
+                case "8":
+                    TablePerTypeDemo.Run();
+                    break;
+                case "9":
+                    TablePerConcreteClassDemo.Run();
                     break;
                 case "0":
                     Console.WriteLine("\nDziękujemy za użycie ORM-v1 Demo!");
