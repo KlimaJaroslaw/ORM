@@ -15,19 +15,19 @@ class Program
 
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
-        Console.WriteLine("║     ORM-v1 - Kompleksowa Aplikacja Demonstracyjna        ║");
+        Console.WriteLine("║     ORM-v1 - Aplikacja Demonstracyjna                      ║");
         Console.WriteLine("╚════════════════════════════════════════════════════════════╝");
 
         while (true)
         {
             Console.WriteLine("\n┌────────────────────────────────────────────────────────┐");
-            Console.WriteLine("│ Wybierz scenariusz demonstracyjny:                    │");
+            Console.WriteLine("│ Wybierz scenariusz demonstracyjny:                     │");
             Console.WriteLine("├────────────────────────────────────────────────────────┤");
             Console.WriteLine("│ PODSTAWOWE FUNKCJE:                                    │");
-            Console.WriteLine("│ 1. Pełna demonstracja - wszystkie możliwości ORM      │");
+            Console.WriteLine("│ 1. Pełna demonstracja - wszystkie możliwości ORM       │");
             Console.WriteLine("│ 2. Podstawowe operacje CRUD                            │");
             Console.WriteLine("│ 3. Change Tracker - śledzenie zmian                    │");
-            Console.WriteLine("│ 4. Typy danych (Enum, DateTime, Decimal)              │");
+            Console.WriteLine("│ 4. Typy danych (Enum, DateTime, Decimal)               │");
             Console.WriteLine("│ 5. Atrybuty mapowania                                  │");
             Console.WriteLine("│ 6. Transakcje i SaveChanges                            │");
             Console.WriteLine("│                                                        │");
@@ -79,7 +79,7 @@ class Program
                     TablePerConcreteClassDemo.Run();
                     break;
                 case "0":
-                    Console.WriteLine("\nDziękujemy za użycie ORM-v1 Demo!");
+                    Console.WriteLine("\nDziękujemy za użycie ORM-v1 Demo");
                     return;
                 case "A":
                 case "a":
@@ -94,7 +94,7 @@ class Program
                     WhereFilteringDemo.Run();
                     break;
                 default:
-                    Console.WriteLine("\n⚠ Nieprawidłowy wybór. Spróbuj ponownie.");
+                    Console.WriteLine("\n Nieprawidłowy wybór. Spróbuj ponownie.");
                     continue;
             }
 
@@ -130,14 +130,14 @@ class Program
         using (var context = new AppDbContext(configuration))
         {
             // 2. Tworzenie schematu bazy danych
-            Console.WriteLine("┌─ 1. TWORZENIE SCHEMATU BAZY DANYCH ───────────────────┐");
+            Console.WriteLine("┌─ 1. TWORZENIE SCHEMATU BAZY DANYCH ───────────────────");
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
-            Console.WriteLine("│ ✓ Schemat utworzony (4 tabele)                        │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("│ ✓ Schemat utworzony (4 tabele)                        ");
+            Console.WriteLine("└───────────────────────────────────────────────────────\n");
 
             // 3. Dodawanie danych - Kategorie
-            Console.WriteLine("┌─ 2. DODAWANIE KATEGORII PRODUKTÓW ────────────────────┐");
+            Console.WriteLine("┌─ 2. DODAWANIE KATEGORII PRODUKTÓW ────────────────────");
             var electronics = new Category
             {
                 Name = "Elektronika",
@@ -158,11 +158,11 @@ class Program
             context.Categories.Add(books);
             context.Categories.Add(clothing);
             context.SaveChanges();
-            Console.WriteLine($"│ ✓ Dodano 3 kategorie (IDs: {electronics.Id}, {books.Id}, {clothing.Id})        │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine($"│ ✓ Dodano 3 kategorie (IDs: {electronics.Id}, {books.Id}, {clothing.Id})");
+            Console.WriteLine("└───────────────────────────────────────────────────────\n");
 
             // 4. Dodawanie produktów
-            Console.WriteLine("┌─ 3. DODAWANIE PRODUKTÓW ──────────────────────────────┐");
+            Console.WriteLine("┌─ 3. DODAWANIE PRODUKTÓW ──────────────────────────────");
             var products = new[]
             {
                 new Product { Name = "Laptop Dell XPS", Price = 5999.99m, Stock = 10, CategoryId = electronics.Id },
@@ -178,11 +178,11 @@ class Program
                 context.Products.Add(product);
             }
             context.SaveChanges();
-            Console.WriteLine($"│ ✓ Dodano {products.Length} produktów                                 │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine($"│ ✓ Dodano {products.Length} produktów                                 ");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 5. Dodawanie klientów
-            Console.WriteLine("┌─ 4. DODAWANIE KLIENTÓW ───────────────────────────────┐");
+            Console.WriteLine("┌─ 4. DODAWANIE KLIENTÓW ───────────────────────────────");
             var customers = new[]
             {
                 new Customer
@@ -216,11 +216,11 @@ class Program
                 context.Customers.Add(customer);
             }
             context.SaveChanges();
-            Console.WriteLine($"│ ✓ Dodano {customers.Length} klientów                                │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine($"│ ✓ Dodano {customers.Length} klientów                                ");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 6. Dodawanie zamówień
-            Console.WriteLine("┌─ 5. DODAWANIE ZAMÓWIEŃ ───────────────────────────────┐");
+            Console.WriteLine("┌─ 5. DODAWANIE ZAMÓWIEŃ ───────────────────────────────");
             var orders = new[]
             {
                 new Order
@@ -248,39 +248,39 @@ class Program
                 context.Orders.Add(order);
             }
             context.SaveChanges();
-            Console.WriteLine($"│ ✓ Dodano {orders.Length} zamówień                                 │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine($"│ ✓ Dodano {orders.Length} zamówień                                 ");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 7. Odczytywanie danych - Find
-            Console.WriteLine("┌─ 6. WYSZUKIWANIE PO ID (Find) ────────────────────────┐");
+            Console.WriteLine("┌─ 6. WYSZUKIWANIE PO ID (Find) ────────────────────────");
             var foundProduct = context.Products.Find(1);
             if (foundProduct != null)
             {
-                Console.WriteLine($"│ ✓ Produkt: {foundProduct.Name,-35}│");
-                Console.WriteLine($"│   Cena: {foundProduct.Price:C}, Stock: {foundProduct.Stock,-25}│");
+                Console.WriteLine($"│ ✓ Produkt: {foundProduct.Name,-35}");
+                Console.WriteLine($"│   Cena: {foundProduct.Price:C}, Stock: {foundProduct.Stock,-25}");
             }
 
             var foundCustomer = context.Customers.Find(2);
             if (foundCustomer != null)
             {
-                Console.WriteLine($"│ ✓ Klient: {foundCustomer.FullName,-36}│");
-                Console.WriteLine($"│   Email: {foundCustomer.Email,-37}│");
+                Console.WriteLine($"│ ✓ Klient: {foundCustomer.FullName,-36}");
+                Console.WriteLine($"│   Email: {foundCustomer.Email,-37}");
             }
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 8. Pobieranie wszystkich rekordów
-            Console.WriteLine("┌─ 7. POBIERANIE WSZYSTKICH PRODUKTÓW (All) ────────────┐");
+            Console.WriteLine("┌─ 7. POBIERANIE WSZYSTKICH PRODUKTÓW (All) ────────────");
             var allProducts = context.Products.All().ToList();
-            Console.WriteLine($"│ ✓ Liczba produktów: {allProducts.Count}                              │");
+            Console.WriteLine($"│ ✓ Liczba produktów: {allProducts.Count}                              ");
             foreach (var p in allProducts.Take(3))
             {
-                Console.WriteLine($"│   • {p.Name,-30} {p.Price,10:C} │");
+                Console.WriteLine($"│   • {p.Name,-30} {p.Price,10:C} ");
             }
-            Console.WriteLine($"│   ... i {allProducts.Count - 3} więcej                                    │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine($"│   ... i {allProducts.Count - 3} więcej                                    ");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 9. Aktualizacja danych
-            Console.WriteLine("┌─ 8. AKTUALIZACJA DANYCH ──────────────────────────────┐");
+            Console.WriteLine("┌─ 8. AKTUALIZACJA DANYCH ──────────────────────────────");
             var productToUpdate = context.Products.Find(1);
             if (productToUpdate != null)
             {
@@ -292,14 +292,14 @@ class Program
                 context.Products.Update(productToUpdate);
                 context.SaveChanges();
 
-                Console.WriteLine($"│ ✓ {productToUpdate.Name,-44}│");
-                Console.WriteLine($"│   Stock: {oldStock} → {productToUpdate.Stock}                                    │");
-                Console.WriteLine($"│   Cena: {oldPrice:C} → {productToUpdate.Price:C}                    │");
+                Console.WriteLine($"│ ✓ {productToUpdate.Name,-44}");
+                Console.WriteLine($"│   Stock: {oldStock} → {productToUpdate.Stock}                                    ");
+                Console.WriteLine($"│   Cena: {oldPrice:C} → {productToUpdate.Price:C}                    ");
             }
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 10. Aktualizacja statusu klienta
-            Console.WriteLine("┌─ 9. ZMIANA STATUSU KLIENTA ───────────────────────────┐");
+            Console.WriteLine("┌─ 9. ZMIANA STATUSU KLIENTA ───────────────────────────");
             var customerToUpdate = context.Customers.Find(3);
             if (customerToUpdate != null)
             {
@@ -308,63 +308,63 @@ class Program
                 context.Customers.Update(customerToUpdate);
                 context.SaveChanges();
 
-                Console.WriteLine($"│ ✓ {customerToUpdate.FullName,-44}│");
-                Console.WriteLine($"│   Status: {oldStatus} → {customerToUpdate.Status}                  │");
+                Console.WriteLine($"│ ✓ {customerToUpdate.FullName,-44}");
+                Console.WriteLine($"│   Status: {oldStatus} → {customerToUpdate.Status}");
             }
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 11. Usuwanie danych
-            Console.WriteLine("┌─ 10. USUWANIE PRODUKTU ───────────────────────────────┐");
+            Console.WriteLine("┌─ 10. USUWANIE PRODUKTU ───────────────────────────────");
             var productToDelete = context.Products.Find(6);
             if (productToDelete != null)
             {
-                Console.WriteLine($"│ Usuwanie: {productToDelete.Name,-37}│");
+                Console.WriteLine($"│ Usuwanie: {productToDelete.Name,-37}");
                 context.Products.Remove(productToDelete);
                 context.SaveChanges();
-                Console.WriteLine($"│ ✓ Produkt usunięty                                    │");
+                Console.WriteLine($"│ ✓ Produkt usunięty");
             }
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 12. Weryfikacja usunięcia
-            Console.WriteLine("┌─ 11. WERYFIKACJA USUNIĘCIA ───────────────────────────┐");
+            Console.WriteLine("┌─ 11. WERYFIKACJA USUNIĘCIA ───────────────────────────");
             var deletedProduct = context.Products.Find(6);
-            var status = deletedProduct == null ? "NIE ZNALEZIONO ✓" : "NADAL ISTNIEJE ✗";
-            Console.WriteLine($"│ Produkt ID=6: {status,-37}│");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            var status = deletedProduct == null ? "NIE ZNALEZIONO " : "NADAL ISTNIEJE";
+            Console.WriteLine($"│ Produkt ID=6: {status,-37}");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 13. Podsumowanie danych
-            Console.WriteLine("┌─ 12. PODSUMOWANIE BAZY DANYCH ────────────────────────┐");
-            Console.WriteLine($"│ • Kategorie:  {context.Categories.All().Count(),3}                                  │");
-            Console.WriteLine($"│ • Produkty:   {context.Products.All().Count(),3}                                  │");
-            Console.WriteLine($"│ • Klienci:    {context.Customers.All().Count(),3}                                  │");
-            Console.WriteLine($"│ • Zamówienia: {context.Orders.All().Count(),3}                                  │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("┌─ 12. PODSUMOWANIE BAZY DANYCH ────────────────────────");
+            Console.WriteLine($"│ • Kategorie:  {context.Categories.All().Count(),3}                                  ");
+            Console.WriteLine($"│ • Produkty:   {context.Products.All().Count(),3}                                  ");
+            Console.WriteLine($"│ • Klienci:    {context.Customers.All().Count(),3}                                  ");
+            Console.WriteLine($"│ • Zamówienia: {context.Orders.All().Count(),3}                                  ");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 14. Demonstracja Change Trackera
-            Console.WriteLine("┌─ 13. CHANGE TRACKER ──────────────────────────────────┐");
+            Console.WriteLine("┌─ 13. CHANGE TRACKER ──────────────────────────────────");
             var trackedCount = context.ChangeTracker.Entries.Count();
             var modifiedCount = context.ChangeTracker.Entries.Count(e => e.State == EntityState.Modified);
             var unchangedCount = context.ChangeTracker.Entries.Count(e => e.State == EntityState.Unchanged);
 
-            Console.WriteLine($"│ • Śledzonych encji:    {trackedCount,3}                            │");
-            Console.WriteLine($"│ • Zmienionych:         {modifiedCount,3}                            │");
-            Console.WriteLine($"│ • Niemodyfikowanych:   {unchangedCount,3}                            │");
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine($"│ • Śledzonych encji:    {trackedCount,3}                            ");
+            Console.WriteLine($"│ • Zmienionych:         {modifiedCount,3}                           ");
+            Console.WriteLine($"│ • Niemodyfikowanych:   {unchangedCount,3}                          ");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 15. Wyświetlanie kategorii z produktami
-            Console.WriteLine("┌─ 14. KATEGORIE Z PRODUKTAMI ──────────────────────────┐");
+            Console.WriteLine("┌─ 14. KATEGORIE Z PRODUKTAMI ──────────────────────────");
             var allCategories = context.Categories.All().ToList();
             var allProductsList = context.Products.All().ToList();
 
             foreach (var cat in allCategories)
             {
                 var productCount = allProductsList.Count(p => p.CategoryId == cat.Id);
-                Console.WriteLine($"│ • {cat.Name,-30} ({productCount} produktów) │");
+                Console.WriteLine($"│ • {cat.Name,-30} ({productCount} produktów)");
             }
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
 
             // 16. Klienci z zamówieniami
-            Console.WriteLine("┌─ 15. KLIENCI Z ZAMÓWIENIAMI ──────────────────────────┐");
+            Console.WriteLine("┌─ 15. KLIENCI Z ZAMÓWIENIAMI ──────────────────────────");
             var allCustomers = context.Customers.All().ToList();
             var allOrders = context.Orders.All().ToList();
 
@@ -372,15 +372,15 @@ class Program
             {
                 var customerOrders = allOrders.Where(o => o.CustomerId == cust.Id).ToList();
                 var totalSpent = customerOrders.Sum(o => o.TotalAmount);
-                Console.WriteLine($"│ • {cust.FullName,-25} │");
-                Console.WriteLine($"│   {customerOrders.Count} zamówień, wartość: {totalSpent,10:C}          │");
+                Console.WriteLine($"│ • {cust.FullName,-25}");
+                Console.WriteLine($"│   {customerOrders.Count} zamówień, wartość: {totalSpent,10:C}          ");
             }
-            Console.WriteLine("└────────────────────────────────────────────────────────┘\n");
+            Console.WriteLine("└────────────────────────────────────────────────────────\n");
         }
 
         Console.WriteLine("═══════════════════════════════════════════════════════════");
-        Console.WriteLine("  ✓ Demonstracja zakończona pomyślnie!");
-        Console.WriteLine("  📁 Plik bazy danych: demo.db");
+        Console.WriteLine("  Demonstracja zakończona pomyślnie");
+        Console.WriteLine("  Plik bazy danych: demo.db");
         Console.WriteLine("═══════════════════════════════════════════════════════════");
     }
 }

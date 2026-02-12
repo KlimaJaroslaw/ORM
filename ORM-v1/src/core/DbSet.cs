@@ -59,13 +59,12 @@ public class DbSet<T> : IQueryable<T> where T : class
         _context.ChangeTracker.Track(entity, EntityState.Deleted);
     }
 
-    // Proste Find po ID
+
     public T? Find(object id)
     {
         return _context.Find<T>(id);
     }
 
-    // Metoda pomocnicza do pobierania wszystkich (dla testów, póki nie ma LINQ)
     public IEnumerable<T> All()
     {
         return _context.SetInternal<T>();

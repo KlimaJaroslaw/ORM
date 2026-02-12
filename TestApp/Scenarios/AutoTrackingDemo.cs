@@ -22,8 +22,8 @@ public static class AutoTrackingDemo
 
         const string dbPath = "autotracking_demo.db";
 
-        if (File.Exists(dbPath))
-            File.Delete(dbPath);
+        //if (File.Exists(dbPath))
+        //     File.Delete(dbPath);
 
         var connectionString = $"Data Source={dbPath};";
         var metadataStore = new MetadataStoreBuilder()
@@ -33,6 +33,7 @@ public static class AutoTrackingDemo
         var config = new DbConfiguration(connectionString, metadataStore);
 
         using var context = new AppDbContext(config);
+        context.Database.EnsureDeleted();
         context.Database.EnsureCreated();
 
         Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -43,21 +44,21 @@ public static class AutoTrackingDemo
         var category = new Category { Name = "Electronics" };
         context.Categories.Add(category);
         context.SaveChanges();
-        Console.WriteLine($"✅ Kategoria utworzona: {category.Name} (ID: {category.Id})");
+        Console.WriteLine($"Kategoria utworzona: {category.Name} (ID: {category.Id})");
 
         var product1 = new Product { Name = "Laptop Dell", Price = 4999.99m, CategoryId = category.Id };
         var product2 = new Product { Name = "Mouse Logitech", Price = 149.99m, CategoryId = category.Id };
         context.Products.Add(product1);
         context.Products.Add(product2);
         context.SaveChanges();
-        Console.WriteLine($"✅ Produkty utworzone: {product1.Name} i {product2.Name}");
+        Console.WriteLine($"Produkty utworzone: {product1.Name} i {product2.Name}");
 
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("TEST 1: Modyfikacja Navigation Property (Many-to-One)");
         Console.WriteLine("═══════════════════════════════════════════════════════\n");
 
         // Pobierz produkt z kategorią (Include)
-        Console.WriteLine($"🔍 Pobieranie produktu z Include(p => p.Category)...");
+        Console.WriteLine($"Pobieranie produktu z Include(p => p.Category)...");
         var productWithCategory = context.Products
             .Include(p => p.Category)
             .ToList()
@@ -65,81 +66,81 @@ public static class AutoTrackingDemo
 
         if (productWithCategory == null)
         {
-            Console.WriteLine("\n❌ BŁĄD: Produkt nie został znaleziony!");
+            Console.WriteLine("\nBŁĄD: Produkt nie został znaleziony!");
             return;
         }
 
-        Console.WriteLine($"📦 Pobrany produkt: {productWithCategory.Name}");
+        Console.WriteLine($"Pobrany produkt: {productWithCategory.Name}");
         Console.WriteLine($"   Kategoria: {productWithCategory.Category?.Name ?? "(null)"}");
 
         // Sprawdź czy encje są śledzone
         var productEntry = context.ChangeTracker.GetEntry(productWithCategory!);
         var categoryEntry = context.ChangeTracker.GetEntry(productWithCategory.Category!);
 
-        Console.WriteLine($"\n🔍 Stan przed modyfikacją:");
+        Console.WriteLine($"\nStan przed modyfikacją:");
         Console.WriteLine($"   Product EntityState: {productEntry?.State ?? EntityState.Detached}");
         Console.WriteLine($"   Category EntityState: {categoryEntry?.State ?? EntityState.Detached}");
 
         if (categoryEntry == null || categoryEntry.State == EntityState.Detached)
         {
-            Console.WriteLine("\n❌ BŁĄD: Category NIE jest śledzona przez ChangeTracker!");
+            Console.WriteLine("\nBŁĄD: Category NIE jest śledzona przez ChangeTracker!");
             return;
         }
 
-        Console.WriteLine("✅ Category jest śledzona jako Unchanged!");
+        Console.WriteLine("Category jest śledzona jako Unchanged!");
 
         // Modyfikuj nazwę kategorii przez navigation property
         var oldCategoryName = productWithCategory.Category.Name;
-        Console.WriteLine($"\n🔧 Modyfikuję Category.Name: \"{oldCategoryName}\" → \"Electronics & Gadgets\"");
+        Console.WriteLine($"\nModyfikuję Category.Name: \"{oldCategoryName}\" → \"Electronics & Gadgets\"");
         productWithCategory.Category.Name = "Electronics & Gadgets";
 
         // ⚠️ WAŻNE: Bez .Update() EntityState pozostaje Unchanged!
-        Console.WriteLine($"   EntityState (bez Update): {context.ChangeTracker.GetEntry(productWithCategory.Category)?.State}");
-        Console.WriteLine("   ⚠️  Bez wywołania .Update() zmiany NIE zostaną zapisane!");
+        Console.WriteLine($"  EntityState (bez Update): {context.ChangeTracker.GetEntry(productWithCategory.Category)?.State}");
+        Console.WriteLine("    Bez wywołania .Update() zmiany NIE zostaną zapisane!");
 
         // ✅ Oznacz jako Modified używając .Update()
-        Console.WriteLine("\n✅ Wywołuję context.Categories.Update(category)...");
+        Console.WriteLine("\nWywołuję context.Categories.Update(category)...");
         context.Categories.Update(productWithCategory.Category);
         Console.WriteLine($"   EntityState (po Update): {context.ChangeTracker.GetEntry(productWithCategory.Category)?.State}");
 
         // Zapisz zmiany
-        Console.WriteLine("\n💾 Wywołuję SaveChanges()...");
+        Console.WriteLine("\nWywołuję SaveChanges()...");
         context.SaveChanges();
 
         // Weryfikacja - pobierz ponownie z bazy
-        Console.WriteLine("\n🔍 Weryfikacja: Pobieranie kategorii z bazy po zapisie...");
+        Console.WriteLine("\nWeryfikacja: Pobieranie kategorii z bazy po zapisie...");
         var updatedCategory = context.Categories.ToList().FirstOrDefault(c => c.Id == category.Id);
         Console.WriteLine($"   Nazwa w bazie: {updatedCategory?.Name}");
 
         if (updatedCategory?.Name == "Electronics & Gadgets")
         {
-            Console.WriteLine("\n✅ SUCCESS! Zmiana w navigation property została zapisana!");
+            Console.WriteLine("\nSUCCESS Zmiana w navigation property została zapisana!");
         }
         else
         {
-            Console.WriteLine($"\n❌ BŁĄD: Oczekiwano 'Electronics & Gadgets', otrzymano '{updatedCategory?.Name}'");
+            Console.WriteLine($"\nBŁĄD: Oczekiwano 'Electronics & Gadgets', otrzymano '{updatedCategory?.Name}'");
             return;
         }
 
-        Console.WriteLine("\n✅ SUCCESS: Zmiany w navigation property zostały zapisane!");
+        Console.WriteLine("\nSUCCESS: Zmiany w navigation property zostały zapisane!");
 
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("TEST 2: Modyfikacja kolekcji (One-to-Many)");
         Console.WriteLine("═══════════════════════════════════════════════════════\n");
 
         // Pobierz kategorię z produktami
-        Console.WriteLine($"🔍 Pobieranie kategorii z Include(c => c.Products)...");
+        Console.WriteLine($"Pobieranie kategorii z Include(c => c.Products)...");
         var categoryWithProducts = context.Categories
             .Include(c => c.Products)
             .ToList()
             .FirstOrDefault(c => c.Id == category.Id);
 
-        Console.WriteLine($"📚 Pobrana kategoria: {categoryWithProducts?.Name}");
+        Console.WriteLine($"Pobrana kategoria: {categoryWithProducts?.Name}");
         Console.WriteLine($"   Produkty w kolekcji: {categoryWithProducts?.Products?.Count ?? 0}");
 
         if (categoryWithProducts?.Products != null)
         {
-            Console.WriteLine("\n🔍 Stan produktów z kolekcji:");
+            Console.WriteLine("\nStan produktów z kolekcji:");
             foreach (var prod in categoryWithProducts.Products)
             {
                 var prodEntry = context.ChangeTracker.GetEntry(prod);
@@ -154,32 +155,32 @@ public static class AutoTrackingDemo
             var oldPrice = firstProduct.Price;
             var newPrice = 1299.99m;
 
-            Console.WriteLine($"\n🔧 Modyfikuję {firstProduct.Name}.Price: ${oldPrice} → ${newPrice}");
+            Console.WriteLine($"\nModyfikuję {firstProduct.Name}.Price: ${oldPrice} → ${newPrice}");
             firstProduct.Price = newPrice;
 
             Console.WriteLine($"   EntityState (bez Update): {context.ChangeTracker.GetEntry(firstProduct)?.State}");
 
             // Oznacz jako Modified
-            Console.WriteLine("\n✅ Wywołuję context.Products.Update(product)...");
+            Console.WriteLine("\nWywołuję context.Products.Update(product)...");
             context.Products.Update(firstProduct);
             Console.WriteLine($"   EntityState (po Update): {context.ChangeTracker.GetEntry(firstProduct)?.State}");
 
             // Zapisz
-            Console.WriteLine("\n💾 Wywołuję SaveChanges()...");
+            Console.WriteLine("\nWywołuję SaveChanges()...");
             context.SaveChanges();
 
             // Weryfikacja
-            Console.WriteLine("\n🔍 Weryfikacja: Pobieranie produktu z bazy po zapisie...");
+            Console.WriteLine("\nWeryfikacja: Pobieranie produktu z bazy po zapisie...");
             var updatedProduct = context.Products.ToList().FirstOrDefault(p => p.Id == firstProduct.Id);
             Console.WriteLine($"   Cena w bazie: ${updatedProduct?.Price}");
 
             if (updatedProduct?.Price == newPrice)
             {
-                Console.WriteLine("\n✅ SUCCESS! Zmiana w elemencie kolekcji została zapisana!");
+                Console.WriteLine("\nSUCCESS Zmiana w elemencie kolekcji została zapisana!");
             }
             else
             {
-                Console.WriteLine($"\n❌ BŁĄD: Oczekiwano ${newPrice}, otrzymano ${updatedProduct?.Price}");
+                Console.WriteLine($"\nBŁĄD: Oczekiwano ${newPrice}, otrzymano ${updatedProduct?.Price}");
                 return;
             }
         }
@@ -189,9 +190,9 @@ public static class AutoTrackingDemo
         Console.WriteLine("═══════════════════════════════════════════════════════\n");
 
         // Pobierz ten sam produkt dwa razy
-        Console.WriteLine("🔍 Pierwsze pobranie produktu...");
+        Console.WriteLine("Pierwsze pobranie produktu...");
         var prod1 = context.Products.Include(p => p.Category).ToList().FirstOrDefault(p => p.Id == product1.Id);
-        Console.WriteLine("🔍 Drugie pobranie tego samego produktu...");
+        Console.WriteLine("Drugie pobranie tego samego produktu...");
         var prod2 = context.Products.Include(p => p.Category).ToList().FirstOrDefault(p => p.Id == product1.Id);
 
         Console.WriteLine($"Product 1: {prod1?.Name} (HashCode: {prod1?.GetHashCode()})");
@@ -199,31 +200,30 @@ public static class AutoTrackingDemo
 
         if (ReferenceEquals(prod1, prod2))
         {
-            Console.WriteLine("\n✅ SUCCESS: Identity Map działa - ta sama instancja!");
+            Console.WriteLine("\nSUCCESS: Identity Map działa - ta sama instancja!");
         }
         else
         {
-            Console.WriteLine("\n❌ BŁĄD: Różne instancje dla tego samego klucza!");
+            Console.WriteLine("\nBŁĄD: Różne instancje dla tego samego klucza!");
         }
 
         if (ReferenceEquals(prod1?.Category, prod2?.Category))
         {
-            Console.WriteLine("✅ SUCCESS: Category też jest tą samą instancją!");
+            Console.WriteLine("SUCCESS: Category też jest tą samą instancją!");
         }
         else
         {
-            Console.WriteLine("❌ BŁĄD: Category ma różne instancje!");
+            Console.WriteLine("BŁĄD: Category ma różne instancje!");
         }
 
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("PODSUMOWANIE");
         Console.WriteLine("═══════════════════════════════════════════════════════");
-        Console.WriteLine("✅ Include() automatycznie śledzi encje jako Unchanged");
-        Console.WriteLine("✅ ToList() używa Identity Map (jedna instancja per klucz)");
-        Console.WriteLine("✅ .Update() oznacza encję jako Modified");
-        Console.WriteLine("✅ SaveChanges() zapisuje tylko Modified/Added/Deleted");
-        Console.WriteLine("✅ Workflow identyczny jak Entity Framework Core!");
-        Console.WriteLine("\n📝 Przykład:");
+        Console.WriteLine("Include() automatycznie śledzi encje jako Unchanged");
+        Console.WriteLine("ToList() używa Identity Map (jedna instancja per klucz)");
+        Console.WriteLine(".Update() oznacza encję jako Modified");
+        Console.WriteLine("SaveChanges() zapisuje tylko Modified/Added/Deleted");        
+        Console.WriteLine("\nPrzykład:");
         Console.WriteLine("   var product = context.Products.Include(p => p.Category).ToList().First();");
         Console.WriteLine("   product.Category.Name = \"New Name\";  // Zmiana właściwości");
         Console.WriteLine("   context.Categories.Update(product.Category);  // Oznacz jako Modified");

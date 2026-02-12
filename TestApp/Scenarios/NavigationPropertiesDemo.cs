@@ -14,7 +14,7 @@ public class NavigationPropertiesDemo
     public static void RunDemo()
     {
         Console.WriteLine("\n╔════════════════════════════════════════════════════════╗");
-        Console.WriteLine("║      NAVIGATION PROPERTIES - Demo                     ║");
+        Console.WriteLine("║      NAVIGATION PROPERTIES - Demo                      ║");
         Console.WriteLine("╚════════════════════════════════════════════════════════╝\n");
 
         // Budowanie metadanych
@@ -68,7 +68,7 @@ public class NavigationPropertiesDemo
 
         foreach (var navProp in blogMap.NavigationProperties)
         {
-            Console.WriteLine($"  • {navProp.PropertyInfo.Name}");
+            Console.WriteLine($"  - {navProp.PropertyInfo.Name}");
             Console.WriteLine($"    - IsCollection: {navProp.IsCollection}");
             Console.WriteLine($"    - TargetType: {navProp.TargetType?.Name}");
             Console.WriteLine($"    - ColumnName: {navProp.ColumnName ?? "(null - nie mapowane na kolumnę)"}");
@@ -77,7 +77,7 @@ public class NavigationPropertiesDemo
         Console.WriteLine("\nScalar Properties:");
         foreach (var prop in blogMap.ScalarProperties)
         {
-            Console.WriteLine($"  • {prop.PropertyInfo.Name} → {prop.ColumnName}");
+            Console.WriteLine($"  - {prop.PropertyInfo.Name} → {prop.ColumnName}");
         }
     }
 
@@ -90,7 +90,7 @@ public class NavigationPropertiesDemo
 
         foreach (var navProp in postMap.NavigationProperties)
         {
-            Console.WriteLine($"  • {navProp.PropertyInfo.Name}");
+            Console.WriteLine($"  - {navProp.PropertyInfo.Name}");
             Console.WriteLine($"    - IsCollection: {navProp.IsCollection}");
             Console.WriteLine($"    - TargetType: {navProp.TargetType?.Name}");
             Console.WriteLine($"    - ForeignKeyName: {navProp.ForeignKeyName ?? "(nie zdefiniowano)"}");
@@ -101,7 +101,7 @@ public class NavigationPropertiesDemo
         {
             var isFk = postMap.NavigationProperties.Any(n => n.ForeignKeyName == prop.PropertyInfo.Name);
             var marker = isFk ? " [FK]" : "";
-            Console.WriteLine($"  • {prop.PropertyInfo.Name} → {prop.ColumnName}{marker}");
+            Console.WriteLine($"  - {prop.PropertyInfo.Name} → {prop.ColumnName}{marker}");
         }
     }
 
@@ -114,7 +114,7 @@ public class NavigationPropertiesDemo
 
         foreach (var navProp in commentMap.NavigationProperties)
         {
-            Console.WriteLine($"  • {navProp.PropertyInfo.Name}");
+            Console.WriteLine($"  - {navProp.PropertyInfo.Name}");
             Console.WriteLine($"    - TargetType: {navProp.TargetType?.Name}");
             Console.WriteLine($"    - ForeignKeyName: {navProp.ForeignKeyName ?? "(automatyczna detekcja)"}");
         }
@@ -129,7 +129,7 @@ public class NavigationPropertiesDemo
 
         foreach (var navProp in employeeMap.NavigationProperties)
         {
-            Console.WriteLine($"  • {navProp.PropertyInfo.Name}");
+            Console.WriteLine($"  - {navProp.PropertyInfo.Name}");
             Console.WriteLine($"    - TargetType: {navProp.TargetType?.Name}");
             Console.WriteLine($"    - IsCollection: {navProp.IsCollection}");
             Console.WriteLine($"    - ForeignKeyName: {navProp.ForeignKeyName}");
@@ -146,7 +146,7 @@ public class NavigationPropertiesDemo
         var addressNav = orderMap.NavigationProperties.FirstOrDefault(p => p.PropertyInfo.Name == "ShippingAddress");
         if (addressNav != null)
         {
-            Console.WriteLine($"  • {addressNav.PropertyInfo.Name}");
+            Console.WriteLine($"  - {addressNav.PropertyInfo.Name}");
             Console.WriteLine($"    - TargetType: {addressNav.TargetType?.Name}");
             Console.WriteLine($"    - ForeignKeyName: {addressNav.ForeignKeyName}");
 
@@ -172,10 +172,10 @@ public class NavigationPropertiesDemo
         using (var context = new BlogDbContext(configuration))
         {
             // Przygotowanie bazy danych
-            Console.WriteLine("📦 Tworzenie bazy danych...");
+            Console.WriteLine("Tworzenie bazy danych...");
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
-            Console.WriteLine("✅ Baza danych utworzona\n");
+            Console.WriteLine("Baza danych utworzona\n");
 
             // Scenariusz 1: Blog z postami
             Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -190,7 +190,7 @@ public class NavigationPropertiesDemo
 
             context.Blogs.Add(techBlog);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano blog: {techBlog.Name} (ID: {techBlog.Id})");
+            Console.WriteLine($"Dodano blog: {techBlog.Name} (ID: {techBlog.Id})");
 
             // Dodajemy posty do bloga
             var post1 = new Post
@@ -210,8 +210,8 @@ public class NavigationPropertiesDemo
             context.Posts.Add(post1);
             context.Posts.Add(post2);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano post: {post1.Title} (ID: {post1.Id})");
-            Console.WriteLine($"✅ Dodano post: {post2.Title} (ID: {post2.Id})\n");
+            Console.WriteLine($"Dodano post: {post1.Title} (ID: {post1.Id})");
+            Console.WriteLine($"Dodano post: {post2.Title} (ID: {post2.Id})\n");
 
             // Scenariusz 2: Komentarz z użytkownikiem i postem
             Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -221,12 +221,12 @@ public class NavigationPropertiesDemo
             var user = new BlogUser
             {
                 Username = "jan_kowalski",
-                Email = "jan@example.com"
+                Email = "jan@example.pl"
             };
 
             context.BlogUsers.Add(user);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano użytkownika: {user.Username} (ID: {user.Id})");
+            Console.WriteLine($"Dodano użytkownika: {user.Username} (ID: {user.Id})");
 
             var comment = new Comment
             {
@@ -238,7 +238,7 @@ public class NavigationPropertiesDemo
 
             context.Comments.Add(comment);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano komentarz: {comment.Text} (ID: {comment.Id})\n");
+            Console.WriteLine($"Dodano komentarz: {comment.Text} (ID: {comment.Id})\n");
 
             // Scenariusz 3: Hierarchia pracowników
             Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -254,7 +254,7 @@ public class NavigationPropertiesDemo
 
             context.Employees.Add(ceo);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano CEO: {ceo.FirstName} {ceo.LastName} (ID: {ceo.Id})");
+            Console.WriteLine($"Dodano CEO: {ceo.FirstName} {ceo.LastName} (ID: {ceo.Id})");
 
             var manager = new Employee
             {
@@ -272,12 +272,12 @@ public class NavigationPropertiesDemo
 
             context.Employees.Add(manager);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano Manager: {manager.FirstName} {manager.LastName} (ID: {manager.Id})");
+            Console.WriteLine($"Dodano Manager: {manager.FirstName} {manager.LastName} (ID: {manager.Id})");
 
             dev1.ManagerId = manager.Id;
             context.Employees.Add(dev1);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano Developer: {dev1.FirstName} {dev1.LastName} (ID: {dev1.Id})\n");
+            Console.WriteLine($"Dodano Developer: {dev1.FirstName} {dev1.LastName} (ID: {dev1.Id})\n");
 
             // Scenariusz 4: Opcjonalna relacja
             Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -294,7 +294,7 @@ public class NavigationPropertiesDemo
 
             context.Addresses.Add(address);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano adres: {address.Street}, {address.City}");
+            Console.WriteLine($"Dodano adres: {address.Street}, {address.City}");
 
             var orderWithAddress = new DemoOrder
             {
@@ -313,8 +313,8 @@ public class NavigationPropertiesDemo
             context.DemoOrders.Add(orderWithAddress);
             context.DemoOrders.Add(orderWithoutAddress);
             context.SaveChanges();
-            Console.WriteLine($"✅ Dodano zamówienie z adresem (ID: {orderWithAddress.Id})");
-            Console.WriteLine($"✅ Dodano zamówienie bez adresu (ID: {orderWithoutAddress.Id})\n");
+            Console.WriteLine($"Dodano zamówienie z adresem (ID: {orderWithAddress.Id})");
+            Console.WriteLine($"Dodano zamówienie bez adresu (ID: {orderWithoutAddress.Id})\n");
 
             // CZĘŚĆ 3: Pobieranie danych
             Console.WriteLine("\n═══════════════════════════════════════════════════════");
@@ -324,7 +324,7 @@ public class NavigationPropertiesDemo
             DemoReadingWithNavigationProperties(context, post1.Id, techBlog.Id, comment.Id, dev1.Id, orderWithAddress.Id);
         }
 
-        Console.WriteLine("\n✅ Demo zakończone pomyślnie!");
+        Console.WriteLine("\nDemo zakończone pomyślnie!");
     }
 
     private static void DemoReadingWithNavigationProperties(
@@ -348,13 +348,13 @@ public class NavigationPropertiesDemo
 
         if (post != null)
         {
-            Console.WriteLine($"📄 Post: {post.Title}");
+            Console.WriteLine($"Post: {post.Title}");
             Console.WriteLine($"   BlogId (FK): {post.BlogId}");
-            Console.WriteLine($"   Blog (nav): {(post.Blog == null ? "NULL ⚠️" : post.Blog.Name + " ✅")}");
+            Console.WriteLine($"   Blog (nav): {(post.Blog == null ? "NULL " : post.Blog.Name + "")}");
 
             if (post.Blog != null)
             {
-                Console.WriteLine($"\n✅ SUCCESS! Blog automatycznie załadowany:");
+                Console.WriteLine($"\nSUCCESS Blog automatycznie załadowany:");
                 Console.WriteLine($"   - Blog Name: {post.Blog.Name}");
                 Console.WriteLine($"   - Blog Description: {post.Blog.Description}");
             }
@@ -373,12 +373,12 @@ public class NavigationPropertiesDemo
 
         if (blogFromDb != null)
         {
-            Console.WriteLine($"📚 Blog: {blogFromDb.Name}");
+            Console.WriteLine($"Blog: {blogFromDb.Name}");
             Console.WriteLine($"   Posts (nav): Count = {blogFromDb.Posts?.Count ?? 0}");
 
             if (blogFromDb.Posts != null && blogFromDb.Posts.Count > 0)
             {
-                Console.WriteLine($"\n✅ SUCCESS! Kolekcja Posts automatycznie załadowana:");
+                Console.WriteLine($"\nSUCCESS Kolekcja Posts automatycznie załadowana:");
                 foreach (var p in blogFromDb.Posts)
                 {
                     Console.WriteLine($"   - {p.Title}");
@@ -400,15 +400,15 @@ public class NavigationPropertiesDemo
 
         if (commentFromDb != null)
         {
-            Console.WriteLine($"💬 Comment: {commentFromDb.Text}");
+            Console.WriteLine($"Comment: {commentFromDb.Text}");
             Console.WriteLine($"   PostId (FK): {commentFromDb.PostId}");
             Console.WriteLine($"   AuthorId (FK): {commentFromDb.AuthorId}");
-            Console.WriteLine($"   Post (nav): {(commentFromDb.Post == null ? "NULL ⚠️" : commentFromDb.Post.Title + " ✅")}");
-            Console.WriteLine($"   Author (nav): {(commentFromDb.Author == null ? "NULL ⚠️" : commentFromDb.Author.Username + " ✅")}");
+            Console.WriteLine($"   Post (nav): {(commentFromDb.Post == null ? "NULL " : commentFromDb.Post.Title + "")}");
+            Console.WriteLine($"   Author (nav): {(commentFromDb.Author == null ? "NULL " : commentFromDb.Author.Username + "")}");
 
             if (commentFromDb.Post != null && commentFromDb.Author != null)
             {
-                Console.WriteLine($"\n✅ SUCCESS! Obie navigation properties załadowane:");
+                Console.WriteLine($"\nSUCCESS Obie navigation properties załadowane:");
                 Console.WriteLine($"   - Post: {commentFromDb.Post.Title}");
                 Console.WriteLine($"   - Author: {commentFromDb.Author.Username}");
             }
@@ -427,13 +427,13 @@ public class NavigationPropertiesDemo
 
         if (employee != null)
         {
-            Console.WriteLine($"👤 Employee: {employee.FirstName} {employee.LastName}");
+            Console.WriteLine($"Employee: {employee.FirstName} {employee.LastName}");
             Console.WriteLine($"   ManagerId (FK): {employee.ManagerId?.ToString() ?? "NULL"}");
 
             if (employee.Manager != null)
             {
-                Console.WriteLine($"   Manager (nav): {employee.Manager.FirstName} {employee.Manager.LastName} ✅");
-                Console.WriteLine($"\n✅ SUCCESS! Manager automatycznie załadowany (self-referencing):");
+                Console.WriteLine($"   Manager (nav): {employee.Manager.FirstName} {employee.Manager.LastName} ");
+                Console.WriteLine($"\nSUCCESS Manager automatycznie załadowany (self-referencing):");
                 Console.WriteLine($"   - {employee.Manager.FirstName} {employee.Manager.LastName}");
             }
             else if (employee.ManagerId == null)
@@ -455,14 +455,14 @@ public class NavigationPropertiesDemo
 
         if (order != null)
         {
-            Console.WriteLine($"🛒 Order ID: {order.Id}");
+            Console.WriteLine($"Order ID: {order.Id}");
             Console.WriteLine($"   Amount: {order.TotalAmount:C}");
             Console.WriteLine($"   ShippingAddressId (FK): {order.ShippingAddressId?.ToString() ?? "NULL"}");
 
             if (order.ShippingAddress != null)
             {
-                Console.WriteLine($"   ShippingAddress (nav): {order.ShippingAddress.Street}, {order.ShippingAddress.City} ✅");
-                Console.WriteLine($"\n✅ SUCCESS! Opcjonalny adres załadowany:");
+                Console.WriteLine($"   ShippingAddress (nav): {order.ShippingAddress.Street}, {order.ShippingAddress.City}");
+                Console.WriteLine($"\nSUCCESS Opcjonalny adres załadowany:");
                 Console.WriteLine($"   - {order.ShippingAddress.Street}");
                 Console.WriteLine($"   - {order.ShippingAddress.PostalCode} {order.ShippingAddress.City}");
                 Console.WriteLine($"   - {order.ShippingAddress.Country}");
@@ -473,11 +473,8 @@ public class NavigationPropertiesDemo
             }
         }
 
-        // ═══════════════════════════════════════════════════════
-        // SCENARIUSZ 6: THENINCLUDE - Zagnieżdżone Navigation Properties
-        // ═══════════════════════════════════════════════════════
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
-        Console.WriteLine("SCENARIUSZ 6: ThenInclude - Blog → Posts → Comments");
+        Console.WriteLine("SCENARIUSZ 6: ThenInclude - Blog - Posts - Comments");
         Console.WriteLine("═══════════════════════════════════════════════════════");
 
         // Załaduj blog z postami i komentarzami w JEDNYM zapytaniu
@@ -490,42 +487,42 @@ public class NavigationPropertiesDemo
 
         if (blogWithComments != null)
         {
-            Console.WriteLine($"📝 Blog: {blogWithComments.Name}");
+            Console.WriteLine($"Blog: {blogWithComments.Name}");
             Console.WriteLine($"   Posts: {blogWithComments.Posts?.Count ?? 0}");
 
             if (blogWithComments.Posts != null)
             {
                 foreach (var blogPost in blogWithComments.Posts)
                 {
-                    Console.WriteLine($"   ├─ Post: {blogPost.Title}");
+                    Console.WriteLine($"   |- Post: {blogPost.Title}");
                     Console.WriteLine($"      Comments: {blogPost.Comments?.Count ?? 0}");
 
                     if (blogPost.Comments != null && blogPost.Comments.Any())
                     {
                         foreach (var postComment in blogPost.Comments)
                         {
-                            Console.WriteLine($"      └─ Comment: {postComment.Text}");
+                            Console.WriteLine($"      - Comment: {postComment.Text}");
                         }
                     }
                 }
 
-                Console.WriteLine($"\n✅ SUCCESS! ThenInclude załadował 3 poziomy hierarchii w 1 zapytaniu:");
-                Console.WriteLine($"   Blog → {blogWithComments.Posts.Count} Posts → {blogWithComments.Posts.Sum(p => p.Comments?.Count ?? 0)} Comments");
+                Console.WriteLine($"\nSUCCESS ThenInclude załadował 3 poziomy hierarchii w 1 zapytaniu:");
+                Console.WriteLine($"   Blog - {blogWithComments.Posts.Count} Posts - {blogWithComments.Posts.Sum(p => p.Comments?.Count ?? 0)} Comments");
             }
         }
 
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("PODSUMOWANIE");
         Console.WriteLine("═══════════════════════════════════════════════════════");
-        Console.WriteLine("✅ Navigation properties są poprawnie mapowane");
-        Console.WriteLine("✅ Klucze obce (FK) są zapisywane i odczytywane");
-        Console.WriteLine("✅ Eager loading (.Include) - ZAIMPLEMENTOWANY!");
-        Console.WriteLine("✅ Multiple includes (.Include().Include()) - DZIAŁA!");
-        Console.WriteLine("✅ ThenInclude (zagnieżdżone includes) - ZAIMPLEMENTOWANY!");
-        Console.WriteLine("✅ Collection navigation properties - DZIAŁA!");
-        Console.WriteLine("✅ Self-referencing relations - DZIAŁA!");
-        Console.WriteLine("✅ Optional relations - DZIAŁA!");
-        Console.WriteLine("\n💡 Jak używać:");
+        Console.WriteLine("Navigation properties są poprawnie mapowane");
+        Console.WriteLine("Klucze obce (FK) są zapisywane i odczytywane");
+        Console.WriteLine("Eager loading (.Include)");
+        Console.WriteLine("Multiple includes (.Include().Include())");
+        Console.WriteLine("ThenInclude (zagnieżdżone includes)");
+        Console.WriteLine("Collection navigation properties");
+        Console.WriteLine("Self-referencing relations");
+        Console.WriteLine("Optional relations");
+        Console.WriteLine("\nJak używać:");
         Console.WriteLine("  context.Posts.Include(p => p.Blog).ToList()");
         Console.WriteLine("  context.Comments.Include(c => c.Post).Include(c => c.Author).ToList()");
         Console.WriteLine("  context.Blogs.Include(b => b.Posts).ToList()");

@@ -6,13 +6,13 @@ using TestApp.Models;
 namespace TestApp.Scenarios;
 
 /// <summary>
-/// Demonstracja pracy z r�nymi typami danych: Enum, DateTime, Decimal
+/// Demonstracja pracy z różnymi typami danych: Enum, DateTime, Decimal
 /// </summary>
 public static class DataTypesDemo
 {
     public static void Run()
     {
-        Console.WriteLine("\n=== DEMONSTRACJA TYP�W DANYCH ===\n");
+        Console.WriteLine("\n=== DEMONSTRACJA TYPÓW DANYCH ===\n");
 
         var connectionString = "Data Source=datatypes_demo.db;";
         var metadataStore = new MetadataStoreBuilder()
@@ -50,7 +50,7 @@ public static class DataTypesDemo
                 new Customer
                 {
                     FirstName = "Piotr",
-                    LastName = "Wi�niewski",
+                    LastName = "Wiśniewski",
                     Email = "piotr@example.com",
                     RegistrationDate = DateTime.Now.AddYears(-1),
                     Status = CustomerStatus.Premium
@@ -63,7 +63,7 @@ public static class DataTypesDemo
             }
             context.SaveChanges();
 
-            Console.WriteLine("   Statusy klient�w:");
+            Console.WriteLine("   Statusy klientów:");
             foreach (var customer in customers)
             {
                 Console.WriteLine($"   - {customer.FullName}: {customer.Status} ({(int)customer.Status})");
@@ -77,7 +77,7 @@ public static class DataTypesDemo
                 Console.WriteLine($"   - {customer.FullName}: zarejestrowany {daysSinceRegistration} dni temu");
             }
 
-            Console.WriteLine("\n3. Praca z typem DECIMAL (ceny produkt�w):");
+            Console.WriteLine("\n3. Praca z typem DECIMAL (ceny produktów):");
             var products = new[]
             {
                 new Product { Name = "Produkt A", Price = 99.99m, Stock = 10, CategoryId = 1 },
@@ -99,11 +99,11 @@ public static class DataTypesDemo
             {
                 var stockValue = product.Price * product.Stock;
                 totalValue += stockValue;
-                Console.WriteLine($"   - {product.Name}: {product.Price:C} � {product.Stock} = {stockValue:C}");
+                Console.WriteLine($"   - {product.Name}: {product.Price:C} x {product.Stock} = {stockValue:C}");
             }
-            Console.WriteLine($"   ��czna warto�� magazynu: {totalValue:C}");
+            Console.WriteLine($"   suma magazynu: {totalValue:C}");
 
-            Console.WriteLine("\n4. Aktualizacja r�nych typ�w danych:");
+            Console.WriteLine("\n4. Aktualizacja różnych typów danych:");
             var customerToUpdate = context.Customers.Find(1);
             if (customerToUpdate != null)
             {
@@ -122,7 +122,7 @@ public static class DataTypesDemo
                 Console.WriteLine($"   - Data rejestracji: {updated?.RegistrationDate:yyyy-MM-dd HH:mm:ss}");
             }
 
-            Console.WriteLine("\n5. Filtrowanie po typach (r�czne):");
+            Console.WriteLine("\n5. Filtrowanie po typach:");
             var premiumCustomers = context.Customers.All()
                 .Where(c => c.Status == CustomerStatus.Premium)
                 .ToList();
@@ -135,13 +135,13 @@ public static class DataTypesDemo
             var expensiveProducts = context.Products.All()
                 .Where(p => p.Price > 1000m)
                 .ToList();
-            Console.WriteLine($"\n   Produkty dro�sze ni� 1000 PLN: {expensiveProducts.Count}");
+            Console.WriteLine($"\n   Produkty droższe niż 1000 PLN: {expensiveProducts.Count}");
             foreach (var p in expensiveProducts)
             {
                 Console.WriteLine($"   - {p.Name}: {p.Price:C}");
             }
         }
 
-        Console.WriteLine("\n=== Data Types Demo zako�czone ===");
+        Console.WriteLine("\n=== Data Types Demo zakończone ===");
     }
 }

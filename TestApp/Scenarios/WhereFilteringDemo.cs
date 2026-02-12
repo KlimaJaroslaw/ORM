@@ -19,8 +19,8 @@ public static class WhereFilteringDemo
 
         const string dbPath = "where_demo.db";
 
-        if (File.Exists(dbPath))
-             File.Delete(dbPath);
+        //if (File.Exists(dbPath))
+        //     File.Delete(dbPath);
 
         var connectionString = $"Data Source={dbPath};";
         var metadataStore = new MetadataStoreBuilder()
@@ -30,6 +30,7 @@ public static class WhereFilteringDemo
         var config = new DbConfiguration(connectionString, metadataStore);
 
         using var context = new AppDbContext(config);
+        context.Database.EnsureDeleted();
         context.Database.EnsureCreated();
 
         // Dodaj testowe produkty
@@ -50,9 +51,6 @@ public static class WhereFilteringDemo
         }
         context.SaveChanges();
 
-        // ═══════════════════════════════════════════════════════
-        // TEST 1: WHERE z porównaniem (Price > 500)
-        // ═══════════════════════════════════════════════════════
         Console.WriteLine("═══════════════════════════════════════════════════════");
         Console.WriteLine("TEST 1: WHERE Price > 500");
         Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -67,9 +65,6 @@ public static class WhereFilteringDemo
             Console.WriteLine($"  • {p.Name} - {p.Price:C}");
         }
 
-        // ═══════════════════════════════════════════════════════
-        // TEST 2: WHERE z równością (Price == 150)
-        // ═══════════════════════════════════════════════════════
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("TEST 2: WHERE Price == 150");
         Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -84,9 +79,6 @@ public static class WhereFilteringDemo
             Console.WriteLine($"  • {p.Name} - {p.Price:C}");
         }
 
-        // ═══════════════════════════════════════════════════════
-        // TEST 3: WHERE z String.Contains
-        // ═══════════════════════════════════════════════════════
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("TEST 3: WHERE Name.Contains(\"o\")");
         Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -101,9 +93,6 @@ public static class WhereFilteringDemo
             Console.WriteLine($"  • {p.Name}");
         }
 
-        // ═══════════════════════════════════════════════════════
-        // TEST 4: WHERE + Include (filtrowanie z eager loading)
-        // ═══════════════════════════════════════════════════════
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("TEST 4: WHERE + Include - Products with Price > 400 AND Category");
         Console.WriteLine("═══════════════════════════════════════════════════════");
@@ -136,10 +125,10 @@ public static class WhereFilteringDemo
         Console.WriteLine("\n═══════════════════════════════════════════════════════");
         Console.WriteLine("PODSUMOWANIE");
         Console.WriteLine("═══════════════════════════════════════════════════════");
-        Console.WriteLine("✅ WHERE z operatorami porównania (>, <, ==, !=) - DZIAŁA!");
-        Console.WriteLine("✅ WHERE z String.Contains() - DZIAŁA!");
-        Console.WriteLine("✅ WHERE + Include (filtrowanie + eager loading) - DZIAŁA!");
-        Console.WriteLine("\n💡 Przykłady użycia:");
+        Console.WriteLine("WHERE z operatorami porównania (>, <, ==, !=) - DZIAŁA");
+        Console.WriteLine("WHERE z String.Contains() - DZIAŁA");
+        Console.WriteLine("WHERE + Include (filtrowanie + eager loading) - DZIAŁA");
+        Console.WriteLine("\nPrzykłady użycia:");
         Console.WriteLine("  context.Products.Where(p => p.Price > 100).ToList()");
         Console.WriteLine("  context.Products.Where(p => p.Name.Contains(\"Laptop\")).ToList()");
         Console.WriteLine("  context.Products.Where(p => p.Price > 500).Include(p => p.Category).ToList()");
