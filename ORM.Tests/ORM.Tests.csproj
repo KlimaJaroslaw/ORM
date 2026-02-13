@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ORM-v1\ORM-v1.csproj" />
+    <ProjectReference Include="..\TestApp\TestApp.csproj" />
   </ItemGroup>
 
 </Project>

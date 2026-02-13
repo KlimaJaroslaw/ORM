@@ -117,8 +117,8 @@ namespace ORM.Tests.SqlGeneration
             // Assert
             Assert.NotNull(sqlQuery);
             Assert.Contains("SELECT", sqlQuery.Sql);
-            Assert.Contains("FROM Users", sqlQuery.Sql);
-            Assert.Contains("WHERE Id = @id", sqlQuery.Sql);
+            Assert.Contains("FROM \"Users\"", sqlQuery.Sql);
+            Assert.Contains("WHERE \"Id\" = @id", sqlQuery.Sql);
             Assert.Single(sqlQuery.Parameters);
             Assert.Equal(id, sqlQuery.Parameters["@id"]);
         }
@@ -167,7 +167,7 @@ namespace ORM.Tests.SqlGeneration
             // Assert
             Assert.NotNull(sqlQuery);
             Assert.Contains("SELECT", sqlQuery.Sql);
-            Assert.Contains("FROM Users", sqlQuery.Sql);
+            Assert.Contains("FROM \"Users\"", sqlQuery.Sql);
             Assert.DoesNotContain("WHERE", sqlQuery.Sql);
             Assert.Empty(sqlQuery.Parameters);
         }
@@ -208,7 +208,7 @@ namespace ORM.Tests.SqlGeneration
 
             // Assert
             Assert.NotNull(sqlQuery);
-            Assert.Contains("INSERT INTO Users", sqlQuery.Sql);
+            Assert.Contains("INSERT INTO \"Users\"", sqlQuery.Sql);
             Assert.Contains("first_name", sqlQuery.Sql);
             Assert.Contains("LastName", sqlQuery.Sql);
             Assert.Contains("VALUES", sqlQuery.Sql);
@@ -302,11 +302,11 @@ namespace ORM.Tests.SqlGeneration
 
             // Assert
             Assert.NotNull(sqlQuery);
-            Assert.Contains("UPDATE Users", sqlQuery.Sql);
+            Assert.Contains("UPDATE \"Users\"", sqlQuery.Sql);
             Assert.Contains("SET", sqlQuery.Sql);
-            Assert.Contains("first_name = @FirstName", sqlQuery.Sql);
-            Assert.Contains("LastName = @LastName", sqlQuery.Sql);
-            Assert.Contains("WHERE Id = @Id", sqlQuery.Sql);
+            Assert.Contains("\"first_name\" = @FirstName", sqlQuery.Sql);
+            Assert.Contains("\"LastName\" = @LastName", sqlQuery.Sql);
+            Assert.Contains("WHERE \"Id\" = @Id", sqlQuery.Sql);
         }
 
         [Fact]
@@ -378,8 +378,8 @@ namespace ORM.Tests.SqlGeneration
 
             // Assert
             Assert.NotNull(sqlQuery);
-            Assert.Contains("DELETE FROM Users", sqlQuery.Sql);
-            Assert.Contains("WHERE Id = @id", sqlQuery.Sql);
+            Assert.Contains("DELETE FROM \"Users\"", sqlQuery.Sql);
+            Assert.Contains("WHERE \"Id\" = @id", sqlQuery.Sql);
         }
 
         [Fact]
