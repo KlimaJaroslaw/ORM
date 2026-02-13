@@ -13,9 +13,9 @@ public class NavigationPropertiesDemo
 {
     public static void RunDemo()
     {
-        Console.WriteLine("\n╔════════════════════════════════════════════════════════╗");
-        Console.WriteLine("║      NAVIGATION PROPERTIES - Demo                      ║");
-        Console.WriteLine("╚════════════════════════════════════════════════════════╝\n");
+        Console.WriteLine("\n========================================================");
+        Console.WriteLine("      NAVIGATION PROPERTIES - Demo                      ");
+        Console.WriteLine("========================================================\n");
 
         // Budowanie metadanych
         var naming = new PascalCaseNamingStrategy();
@@ -23,38 +23,38 @@ public class NavigationPropertiesDemo
         var director = new ModelDirector(builder);
         var metadata = director.Construct(typeof(NavigationPropertiesDemo).Assembly);
 
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         Console.WriteLine("CZĘŚĆ 1: ANALIZA METADANYCH");
-        Console.WriteLine("═══════════════════════════════════════════════════════\n");
+        Console.WriteLine("=======================================================\n");
 
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         Console.WriteLine("1. ONE-TO-MANY (Blog -> Posts)");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         DemoOneToMany(metadata);
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("2. MANY-TO-ONE (Post -> Blog)");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         DemoManyToOne(metadata);
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("3. MANY-TO-ONE (Comment -> User & Post)");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         DemoMultipleForeignKeys(metadata);
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("4. SELF-REFERENCING (Employee -> Manager)");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         DemoSelfReferencing(metadata);
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("5. OPTIONAL RELATIONSHIP (Order -> ShippingAddress)");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         DemoOptionalRelationship(metadata);
 
-        Console.WriteLine("\n\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n\n=======================================================");
         Console.WriteLine("CZĘŚĆ 2: OPERACJE NA BAZIE DANYCH");
-        Console.WriteLine("═══════════════════════════════════════════════════════\n");
+        Console.WriteLine("=======================================================\n");
 
         RunDatabaseDemo();
     }
@@ -178,9 +178,9 @@ public class NavigationPropertiesDemo
             Console.WriteLine("Baza danych utworzona\n");
 
             // Scenariusz 1: Blog z postami
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
             Console.WriteLine("SCENARIUSZ 1: Tworzenie Blog z Posts");
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
 
             var techBlog = new Blog
             {
@@ -214,9 +214,9 @@ public class NavigationPropertiesDemo
             Console.WriteLine($"Dodano post: {post2.Title} (ID: {post2.Id})\n");
 
             // Scenariusz 2: Komentarz z użytkownikiem i postem
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
             Console.WriteLine("SCENARIUSZ 2: Komentarz z wieloma FK");
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
 
             var user = new BlogUser
             {
@@ -241,9 +241,9 @@ public class NavigationPropertiesDemo
             Console.WriteLine($"Dodano komentarz: {comment.Text} (ID: {comment.Id})\n");
 
             // Scenariusz 3: Hierarchia pracowników
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
             Console.WriteLine("SCENARIUSZ 3: Self-referencing (Employee hierarchy)");
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
 
             var ceo = new Employee
             {
@@ -280,9 +280,9 @@ public class NavigationPropertiesDemo
             Console.WriteLine($"Dodano Developer: {dev1.FirstName} {dev1.LastName} (ID: {dev1.Id})\n");
 
             // Scenariusz 4: Opcjonalna relacja
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
             Console.WriteLine("SCENARIUSZ 4: Opcjonalna relacja (Order + Address)");
-            Console.WriteLine("═══════════════════════════════════════════════════════");
+            Console.WriteLine("=======================================================");
 
             var address = new Address
             {
@@ -317,9 +317,9 @@ public class NavigationPropertiesDemo
             Console.WriteLine($"Dodano zamówienie bez adresu (ID: {orderWithoutAddress.Id})\n");
 
             // CZĘŚĆ 3: Pobieranie danych
-            Console.WriteLine("\n═══════════════════════════════════════════════════════");
+            Console.WriteLine("\n=======================================================");
             Console.WriteLine("CZĘŚĆ 3: POBIERANIE DANYCH I NAVIGATION PROPERTIES");
-            Console.WriteLine("═══════════════════════════════════════════════════════\n");
+            Console.WriteLine("=======================================================\n");
 
             DemoReadingWithNavigationProperties(context, post1.Id, techBlog.Id, comment.Id, dev1.Id, orderWithAddress.Id);
         }
@@ -335,9 +335,9 @@ public class NavigationPropertiesDemo
         int employeeId,
         int orderId)
     {
-        Console.WriteLine("─────────────────────────────────────────────────────");
+        Console.WriteLine("-----------------------------------------------------");
         Console.WriteLine("1. Pobieranie Post (Many-to-One do Blog) - Eager Loading");
-        Console.WriteLine("─────────────────────────────────────────────────────");
+        Console.WriteLine("-----------------------------------------------------");
 
         // Użycie .Include() dla eager loading
         var postsWithBlog = context.Posts
@@ -360,9 +360,9 @@ public class NavigationPropertiesDemo
             }
         }
 
-        Console.WriteLine("\n─────────────────────────────────────────────────────");
+        Console.WriteLine("\n-----------------------------------------------------");
         Console.WriteLine("2. Pobieranie Blog (One-to-Many do Posts) - Eager Loading");
-        Console.WriteLine("─────────────────────────────────────────────────────");
+        Console.WriteLine("-----------------------------------------------------");
 
         // Użycie .Include() dla kolekcji
         var blogsWithPosts = context.Blogs
@@ -386,9 +386,9 @@ public class NavigationPropertiesDemo
             }
         }
 
-        Console.WriteLine("\n─────────────────────────────────────────────────────");
+        Console.WriteLine("\n-----------------------------------------------------");
         Console.WriteLine("3. Pobieranie Comment (Multiple FK) - Multiple Includes");
-        Console.WriteLine("─────────────────────────────────────────────────────");
+        Console.WriteLine("-----------------------------------------------------");
 
         // Użycie wielu .Include() dla różnych navigation properties
         var commentsWithRelated = context.Comments
@@ -414,9 +414,9 @@ public class NavigationPropertiesDemo
             }
         }
 
-        Console.WriteLine("\n─────────────────────────────────────────────────────");
+        Console.WriteLine("\n-----------------------------------------------------");
         Console.WriteLine("4. Pobieranie Employee (Self-referencing) - Eager Loading");
-        Console.WriteLine("─────────────────────────────────────────────────────");
+        Console.WriteLine("-----------------------------------------------------");
 
         // Self-referencing z .Include()
         var employeesWithManager = context.Employees
@@ -442,9 +442,9 @@ public class NavigationPropertiesDemo
             }
         }
 
-        Console.WriteLine("\n─────────────────────────────────────────────────────");
+        Console.WriteLine("\n-----------------------------------------------------");
         Console.WriteLine("5. Pobieranie Order (Optional relationship) - Eager Loading");
-        Console.WriteLine("─────────────────────────────────────────────────────");
+        Console.WriteLine("-----------------------------------------------------");
 
         // Opcjonalna relacja z .Include()
         var ordersWithAddress = context.DemoOrders
@@ -473,9 +473,9 @@ public class NavigationPropertiesDemo
             }
         }
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("SCENARIUSZ 6: ThenInclude - Blog - Posts - Comments");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
 
         // Załaduj blog z postami i komentarzami w JEDNYM zapytaniu
         var blogsWithPostsAndComments = context.Blogs
@@ -511,9 +511,9 @@ public class NavigationPropertiesDemo
             }
         }
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("PODSUMOWANIE");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         Console.WriteLine("Navigation properties są poprawnie mapowane");
         Console.WriteLine("Klucze obce (FK) są zapisywane i odczytywane");
         Console.WriteLine("Eager loading (.Include)");
@@ -527,7 +527,7 @@ public class NavigationPropertiesDemo
         Console.WriteLine("  context.Comments.Include(c => c.Post).Include(c => c.Author).ToList()");
         Console.WriteLine("  context.Blogs.Include(b => b.Posts).ToList()");
         Console.WriteLine("  context.Blogs.Include(b => b.Posts).ThenInclude(p => p.Comments).ToList()");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
     }
 }
 

@@ -89,7 +89,7 @@ public static class TransactionDemo
 
             context.SaveChanges();
 
-            Console.WriteLine("\n   ✓ Wszystkie operacje wykonane atomowo");
+            Console.WriteLine("\n    Wszystkie operacje wykonane atomowo");
 
             // Weryfikacja
             var allProducts = context.Products.All().ToList();
@@ -102,10 +102,10 @@ public static class TransactionDemo
             Console.WriteLine("\n3. Brak zmian - SaveChanges bez efektu:");
             var productNoChange = context.Products.Find(1);
             Console.WriteLine($"   Pobrany produkt: {productNoChange?.Name}");
-            Console.WriteLine($"   Czy s� zmiany: {context.ChangeTracker.HasChanges()}");
+            Console.WriteLine($"   Czy są zmiany: {context.ChangeTracker.HasChanges()}");
 
             context.SaveChanges();
-            Console.WriteLine("   ? SaveChanges wykonane, ale bez operacji (brak zmian)");
+            Console.WriteLine("   - SaveChanges wykonane, ale bez operacji (brak zmian)");
 
             Console.WriteLine("\n4. Wielokrotne SaveChanges:");
 
@@ -120,12 +120,12 @@ public static class TransactionDemo
 
             context.Customers.Add(customer1);
             context.SaveChanges();
-            Console.WriteLine($"   ✓ Pierwszy SaveChanges - dodano klienta ID: {customer1.Id}");
+            Console.WriteLine($"    Pierwszy SaveChanges - dodano klienta ID: {customer1.Id}");
 
             customer1.Status = CustomerStatus.Premium;
             context.Customers.Update(customer1);
             context.SaveChanges();
-            Console.WriteLine($"   ✓ Drugi SaveChanges - zaktualizowano status: {customer1.Status}");
+            Console.WriteLine($"    Drugi SaveChanges - zaktualizowano status: {customer1.Status}");
 
             var customer2 = new Customer
             {
@@ -138,7 +138,7 @@ public static class TransactionDemo
 
             context.Customers.Add(customer2);
             context.SaveChanges();
-            Console.WriteLine($"   ✓ Trzeci SaveChanges - dodano klienta ID: {customer2.Id}");
+            Console.WriteLine($"    Trzeci SaveChanges - dodano klienta ID: {customer2.Id}");
 
             Console.WriteLine("\n5. Demonstracja rollback (symulacja błędu):");
             Console.WriteLine("   ORM automatycznie wykonuje rollback w przypadku błędu");

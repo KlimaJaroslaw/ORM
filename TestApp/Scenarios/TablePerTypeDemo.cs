@@ -11,9 +11,9 @@ public static class TablePerTypeDemo
     {
         const int w = 54;
         
-        Console.WriteLine("\n" + new string('═', w + 4));
+        Console.WriteLine("\n" + new string('=', w + 4));
         Console.WriteLine($"  {"TABLE PER TYPE (TPT) - Demonstracja",-w}");
-        Console.WriteLine(new string('═', w + 4) + "\n");
+        Console.WriteLine(new string('=', w + 4) + "\n");
 
         var connectionString = "Data Source=tpt_demo.db;";
         var metadataStore = new MetadataStoreBuilder()
@@ -25,21 +25,21 @@ public static class TablePerTypeDemo
 
         using (var context = new AppDbContext(configuration))
         {
-            Console.WriteLine("┌" + new string('─', w + 2) + "┐");
-            Console.WriteLine($"│ {"1. STRATEGIA TPT",-w} │");
-            Console.WriteLine("├" + new string('─', w + 2) + "┤");
-            Console.WriteLine($"│ {"• Osobna tabela dla każdego typu w hierarchii",-w} │");
-            Console.WriteLine($"│ {"• JOIN do odczytu danych pochodnych",-w} │");
-            Console.WriteLine($"│ {"• Vehicle (bazowa) -> Car, Truck (pochodne)",-w} │");
-            Console.WriteLine($"│ {"• Tabele: Vehicles, Cars, Trucks",-w} │");
-            Console.WriteLine("└" + new string('─', w + 2) + "┘\n");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"1. STRATEGIA TPT",-w} |");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"- Osobna tabela dla każdego typu w hierarchii",-w} |");
+            Console.WriteLine($"| {"- JOIN do odczytu danych pochodnych",-w} |");
+            Console.WriteLine($"| {"- Vehicle (bazowa) -> Car, Truck (pochodne)",-w} |");
+            Console.WriteLine($"| {"- Tabele: Vehicles, Cars, Trucks",-w} |");
+            Console.WriteLine("└" + new string('-', w + 2) + "|\n");
 
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
-            Console.WriteLine("┌" + new string('─', w + 2) + "┐");
-            Console.WriteLine($"│ {"2. TWORZENIE DANYCH",-w} │");
-            Console.WriteLine("├" + new string('─', w + 2) + "┤");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"2. TWORZENIE DANYCH",-w} |");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
             
             var car1 = new Car
             {
@@ -84,123 +84,123 @@ public static class TablePerTypeDemo
             
             context.SaveChanges();
 
-            Console.WriteLine($"│ {"✓ Dodano samochody:",-w} │");
-            Console.WriteLine($"│ {"  • " + car1.Brand + " (ID: " + car1.Id + ") - " + car1.Price.ToString("C"),-w} │");
-            Console.WriteLine($"│ {"  • " + car2.Brand + " (ID: " + car2.Id + ") - " + car2.Price.ToString("C"),-w} │");
-            Console.WriteLine($"│ {"✓ Dodano ciężarówki:",-w} │");
-            Console.WriteLine($"│ {"  • " + truck1.Brand + " (ID: " + truck1.Id + ") - " + truck1.Price.ToString("C"),-w} │");
-            Console.WriteLine($"│ {"  • " + truck2.Brand + " (ID: " + truck2.Id + ") - " + truck2.Price.ToString("C"),-w} │");
-            Console.WriteLine($"│ {"ℹ Dane w tabelach: Vehicles, Cars, Trucks",-w} │");
-            Console.WriteLine("└" + new string('─', w + 2) + "┘\n");
+            Console.WriteLine($"| {" Dodano samochody:",-w} |");
+            Console.WriteLine($"| {"  - " + car1.Brand + " (ID: " + car1.Id + ") - " + car1.Price.ToString("C"),-w} |");
+            Console.WriteLine($"| {"  - " + car2.Brand + " (ID: " + car2.Id + ") - " + car2.Price.ToString("C"),-w} |");
+            Console.WriteLine($"| {" Dodano ciężarówki:",-w} |");
+            Console.WriteLine($"| {"  - " + truck1.Brand + " (ID: " + truck1.Id + ") - " + truck1.Price.ToString("C"),-w} |");
+            Console.WriteLine($"| {"  - " + truck2.Brand + " (ID: " + truck2.Id + ") - " + truck2.Price.ToString("C"),-w} |");
+            Console.WriteLine($"| {" Dane w tabelach: Vehicles, Cars, Trucks",-w} |");
+            Console.WriteLine("└" + new string('-', w + 2) + "|\n");
 
-            Console.WriteLine("┌" + new string('─', w + 2) + "┐");
-            Console.WriteLine($"│ {"3. ODCZYT DANYCH (Find)",-w} │");
-            Console.WriteLine("├" + new string('─', w + 2) + "┤");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"3. ODCZYT DANYCH (Find)",-w} |");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
             
             var foundCar = context.Set<Car>().Find(car1.Id);
             if (foundCar != null)
             {
-                Console.WriteLine($"│ {"Znaleziono samochód:",-w} │");
-                Console.WriteLine($"│ {"  • Marka: " + foundCar.Brand,-w} │");
-                Console.WriteLine($"│ {"  • Rok: " + foundCar.Year,-w} │");
-                Console.WriteLine($"│ {"  • Cena: " + foundCar.Price.ToString("C"),-w} │");
-                Console.WriteLine($"│ {"  • Drzwi: " + foundCar.NumberOfDoors,-w} │");
-                Console.WriteLine($"│ {"  • Silnik: " + foundCar.EngineType,-w} │");
+                Console.WriteLine($"| {"Znaleziono samochód:",-w} |");
+                Console.WriteLine($"| {"  - Marka: " + foundCar.Brand,-w} |");
+                Console.WriteLine($"| {"  - Rok: " + foundCar.Year,-w} |");
+                Console.WriteLine($"| {"  - Cena: " + foundCar.Price.ToString("C"),-w} |");
+                Console.WriteLine($"| {"  - Drzwi: " + foundCar.NumberOfDoors,-w} |");
+                Console.WriteLine($"| {"  - Silnik: " + foundCar.EngineType,-w} |");
             }
 
             var foundTruck = context.Set<Truck>().Find(truck1.Id);
             if (foundTruck != null)
             {
-                Console.WriteLine($"│ {"",-w} │");
-                Console.WriteLine($"│ {"Znaleziono ciężarówkę:",-w} │");
-                Console.WriteLine($"│ {"  • Marka: " + foundTruck.Brand,-w} │");
-                Console.WriteLine($"│ {"  • Rok: " + foundTruck.Year,-w} │");
-                Console.WriteLine($"│ {"  • Ładowność: " + foundTruck.PayloadCapacity + " kg",-w} │");
-                Console.WriteLine($"│ {"  • Osie: " + foundTruck.NumberOfAxles,-w} │");
+                Console.WriteLine($"| {"",-w} |");
+                Console.WriteLine($"| {"Znaleziono ciężarówkę:",-w} |");
+                Console.WriteLine($"| {"  - Marka: " + foundTruck.Brand,-w} |");
+                Console.WriteLine($"| {"  - Rok: " + foundTruck.Year,-w} |");
+                Console.WriteLine($"| {"  - Ładowność: " + foundTruck.PayloadCapacity + " kg",-w} |");
+                Console.WriteLine($"| {"  - Osie: " + foundTruck.NumberOfAxles,-w} |");
             }
-            Console.WriteLine($"│ {"ℹ Dane pobrane z JOIN Vehicles + Cars/Trucks",-w} │");
-            Console.WriteLine("└" + new string('─', w + 2) + "┘\n");
+            Console.WriteLine($"| {" Dane pobrane z JOIN Vehicles + Cars/Trucks",-w} |");
+            Console.WriteLine("└" + new string('-', w + 2) + "|\n");
 
-            Console.WriteLine("┌" + new string('─', w + 2) + "┐");
-            Console.WriteLine($"│ {"4. ODCZYT WSZYSTKICH (All)",-w} │");
-            Console.WriteLine("├" + new string('─', w + 2) + "┤");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"4. ODCZYT WSZYSTKICH (All)",-w} |");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
             
             var allCars = context.Set<Car>().All().ToList();
-            Console.WriteLine($"│ {"Wszystkie samochody (" + allCars.Count + "):",-w} │");
+            Console.WriteLine($"| {"Wszystkie samochody (" + allCars.Count + "):",-w} |");
             foreach (var car in allCars)
             {
-                Console.WriteLine($"│ {"  • " + car.Brand + " " + car.Year + " - " + car.EngineType,-w} │");
+                Console.WriteLine($"| {"  - " + car.Brand + " " + car.Year + " - " + car.EngineType,-w} |");
             }
 
             var allTrucks = context.Set<Truck>().All().ToList();
-            Console.WriteLine($"│ {"",-w} │");
-            Console.WriteLine($"│ {"Wszystkie ciężarówki (" + allTrucks.Count + "):",-w} │");
+            Console.WriteLine($"| {"",-w} |");
+            Console.WriteLine($"| {"Wszystkie ciężarówki (" + allTrucks.Count + "):",-w} |");
             foreach (var truck in allTrucks)
             {
-                Console.WriteLine($"│ {"  • " + truck.Brand + " - " + truck.PayloadCapacity + "kg ładowności",-w} │");
+                Console.WriteLine($"| {"  - " + truck.Brand + " - " + truck.PayloadCapacity + "kg ładowności",-w} |");
             }
-            Console.WriteLine("└" + new string('─', w + 2) + "┘\n");
+            Console.WriteLine("└" + new string('-', w + 2) + "|\n");
 
-            Console.WriteLine("┌" + new string('─', w + 2) + "┐");
-            Console.WriteLine($"│ {"5. EDYCJA DANYCH (Update)",-w} │");
-            Console.WriteLine("├" + new string('─', w + 2) + "┤");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"5. EDYCJA DANYCH (Update)",-w} |");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
             
             if (foundCar != null)
             {
-                Console.WriteLine($"│ {"Przed: " + foundCar.Brand + " - " + foundCar.Price.ToString("C"),-w} │");
+                Console.WriteLine($"| {"Przed: " + foundCar.Brand + " - " + foundCar.Price.ToString("C"),-w} |");
                 foundCar.Price = 115000m;
                 foundCar.EngineType = "Plug-in Hybrid";
                 context.Set<Car>().Update(foundCar);
                 context.SaveChanges();
-                Console.WriteLine($"│ {"Po:    " + foundCar.Brand + " - " + foundCar.Price.ToString("C") + " - " + foundCar.EngineType,-w} │");
+                Console.WriteLine($"| {"Po:    " + foundCar.Brand + " - " + foundCar.Price.ToString("C") + " - " + foundCar.EngineType,-w} |");
             }
 
             if (foundTruck != null)
             {
-                Console.WriteLine($"│ {"",-w} │");
-                Console.WriteLine($"│ {"Przed: " + foundTruck.Brand + " - " + foundTruck.PayloadCapacity + "kg",-w} │");
+                Console.WriteLine($"| {"",-w} |");
+                Console.WriteLine($"| {"Przed: " + foundTruck.Brand + " - " + foundTruck.PayloadCapacity + "kg",-w} |");
                 foundTruck.PayloadCapacity = 22000m;
                 context.Set<Truck>().Update(foundTruck);
                 context.SaveChanges();
-                Console.WriteLine($"│ {"Po:    " + foundTruck.Brand + " - " + foundTruck.PayloadCapacity + "kg",-w} │");
+                Console.WriteLine($"| {"Po:    " + foundTruck.Brand + " - " + foundTruck.PayloadCapacity + "kg",-w} |");
             }
-            Console.WriteLine($"│ {"ℹ UPDATE wykonany na wielu tabelach",-w} │");
-            Console.WriteLine("└" + new string('─', w + 2) + "┘\n");
+            Console.WriteLine($"| {" UPDATE wykonany na wielu tabelach",-w} |");
+            Console.WriteLine("└" + new string('-', w + 2) + "|\n");
 
-            Console.WriteLine("┌" + new string('─', w + 2) + "┐");
-            Console.WriteLine($"│ {"6. USUWANIE DANYCH (Delete)",-w} │");
-            Console.WriteLine("├" + new string('─', w + 2) + "┤");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"6. USUWANIE DANYCH (Delete)",-w} |");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
             
             var carToDelete = context.Set<Car>().Find(car2.Id);
             if (carToDelete != null)
             {
-                Console.WriteLine($"│ {"Usuwanie: " + carToDelete.Brand + " " + carToDelete.Year,-w} │");
+                Console.WriteLine($"| {"Usuwanie: " + carToDelete.Brand + " " + carToDelete.Year,-w} |");
                 context.Set<Car>().Remove(carToDelete);
                 context.SaveChanges();
-                Console.WriteLine($"│ {"✓ Samochód " + carToDelete.Brand + " został usunięty",-w} │");
+                Console.WriteLine($"| {" Samochód " + carToDelete.Brand + " został usunięty",-w} |");
             }
 
             var remainingCars = context.Set<Car>().All().ToList();
-            Console.WriteLine($"│ {"Pozostałe samochody: " + remainingCars.Count,-w} │");
+            Console.WriteLine($"| {"Pozostałe samochody: " + remainingCars.Count,-w} |");
             foreach (var car in remainingCars)
             {
-                Console.WriteLine($"│ {"  • " + car.Brand + " " + car.Year,-w} │");
+                Console.WriteLine($"| {"  - " + car.Brand + " " + car.Year,-w} |");
             }
-            Console.WriteLine("└" + new string('─', w + 2) + "┘\n");
+            Console.WriteLine("└" + new string('-', w + 2) + "|\n");
 
-            Console.WriteLine("┌" + new string('─', w + 2) + "┐");
-            Console.WriteLine($"│ {"7. PODSUMOWANIE TPT",-w} │");
-            Console.WriteLine("├" + new string('─', w + 2) + "┤");
-            Console.WriteLine($"│ {"• Tabele: Vehicles (bazowa), Cars, Trucks",-w} │");
-            Console.WriteLine($"│ {"• Samochodów w bazie: " + context.Set<Car>().All().Count(),-w} │");
-            Console.WriteLine($"│ {"• Ciężarówek w bazie: " + context.Set<Truck>().All().Count(),-w} │");
-            Console.WriteLine($"│ {"• Zalety: normalizacja, brak NULL-i",-w} │");
-            Console.WriteLine($"│ {"• Wady: konieczność JOIN-ów, wolniejszy odczyt",-w} │");
-            Console.WriteLine("└" + new string('─', w + 2) + "┘");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"7. PODSUMOWANIE TPT",-w} |");
+            Console.WriteLine("|" + new string('-', w + 2) + "|");
+            Console.WriteLine($"| {"- Tabele: Vehicles (bazowa), Cars, Trucks",-w} |");
+            Console.WriteLine($"| {"- Samochodów w bazie: " + context.Set<Car>().All().Count(),-w} |");
+            Console.WriteLine($"| {"- Ciężarówek w bazie: " + context.Set<Truck>().All().Count(),-w} |");
+            Console.WriteLine($"| {"- Zalety: normalizacja, brak NULL-i",-w} |");
+            Console.WriteLine($"| {"- Wady: konieczność JOIN-ów, wolniejszy odczyt",-w} |");
+            Console.WriteLine("└" + new string('-', w + 2) + "|");
         }
 
-        Console.WriteLine("\n" + new string('═', w + 4));
-        Console.WriteLine($"  {"✓ Demonstracja TPT zakończona",-w}");
-        Console.WriteLine(new string('═', w + 4));
+        Console.WriteLine("\n" + new string('=', w + 4));
+        Console.WriteLine($"  {" Demonstracja TPT zakończona",-w}");
+        Console.WriteLine(new string('=', w + 4));
     }
 }

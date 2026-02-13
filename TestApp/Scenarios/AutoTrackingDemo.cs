@@ -16,9 +16,9 @@ public static class AutoTrackingDemo
 {
     public static void Run()
     {
-        Console.WriteLine("\n╔════════════════════════════════════════════════════════════╗");
-        Console.WriteLine("║      AUTO-TRACKING DEMO - Navigation Properties          ║");
-        Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");
+        Console.WriteLine("\n============================================================");
+        Console.WriteLine("      AUTO-TRACKING DEMO - Navigation Properties          ");
+        Console.WriteLine("============================================================\n");
 
         const string dbPath = "autotracking_demo.db";
 
@@ -36,9 +36,9 @@ public static class AutoTrackingDemo
         context.Database.EnsureDeleted();
         context.Database.EnsureCreated();
 
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         Console.WriteLine("SETUP: Tworzenie danych testowych");
-        Console.WriteLine("═══════════════════════════════════════════════════════\n");
+        Console.WriteLine("=======================================================\n");
 
         // Dodaj kategorię i produkty
         var category = new Category { Name = "Electronics" };
@@ -53,9 +53,9 @@ public static class AutoTrackingDemo
         context.SaveChanges();
         Console.WriteLine($"Produkty utworzone: {product1.Name} i {product2.Name}");
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("TEST 1: Modyfikacja Navigation Property (Many-to-One)");
-        Console.WriteLine("═══════════════════════════════════════════════════════\n");
+        Console.WriteLine("=======================================================\n");
 
         // Pobierz produkt z kategorią (Include)
         Console.WriteLine($"Pobieranie produktu z Include(p => p.Category)...");
@@ -124,9 +124,9 @@ public static class AutoTrackingDemo
 
         Console.WriteLine("\nSUCCESS: Zmiany w navigation property zostały zapisane!");
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("TEST 2: Modyfikacja kolekcji (One-to-Many)");
-        Console.WriteLine("═══════════════════════════════════════════════════════\n");
+        Console.WriteLine("=======================================================\n");
 
         // Pobierz kategorię z produktami
         Console.WriteLine($"Pobieranie kategorii z Include(c => c.Products)...");
@@ -185,9 +185,9 @@ public static class AutoTrackingDemo
             }
         }
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("TEST 3: Identity Map - ta sama instancja");
-        Console.WriteLine("═══════════════════════════════════════════════════════\n");
+        Console.WriteLine("=======================================================\n");
 
         // Pobierz ten sam produkt dwa razy
         Console.WriteLine("Pierwsze pobranie produktu...");
@@ -216,9 +216,9 @@ public static class AutoTrackingDemo
             Console.WriteLine("BŁĄD: Category ma różne instancje!");
         }
 
-        Console.WriteLine("\n═══════════════════════════════════════════════════════");
+        Console.WriteLine("\n=======================================================");
         Console.WriteLine("PODSUMOWANIE");
-        Console.WriteLine("═══════════════════════════════════════════════════════");
+        Console.WriteLine("=======================================================");
         Console.WriteLine("Include() automatycznie śledzi encje jako Unchanged");
         Console.WriteLine("ToList() używa Identity Map (jedna instancja per klucz)");
         Console.WriteLine(".Update() oznacza encję jako Modified");

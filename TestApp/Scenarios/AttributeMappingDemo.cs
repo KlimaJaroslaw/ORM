@@ -59,15 +59,15 @@ public static class AttributeMappingDemo
             context.Products.Add(product);
             context.SaveChanges();
 
-            Console.WriteLine($"   ✓ Zapisano produkt z ID: {product.Id}");
+            Console.WriteLine($"    Zapisano produkt z ID: {product.Id}");
             Console.WriteLine($"     Nazwa (property 'Name'): {product.Name}");
-            Console.WriteLine($"     → Zapisana w kolumnie 'product_name'");
+            Console.WriteLine($"     - Zapisana w kolumnie 'product_name'");
 
             // Odczyt
             var foundProduct = context.Products.Find(product.Id);
             if (foundProduct != null)
             {
-                Console.WriteLine($"\n   ✓ Odczytano produkt:");
+                Console.WriteLine($"\n    Odczytano produkt:");
                 Console.WriteLine($"     ID: {foundProduct.Id}");
                 Console.WriteLine($"     Nazwa: {foundProduct.Name}");
             }
@@ -85,15 +85,15 @@ public static class AttributeMappingDemo
             context.Customers.Add(customer);
             context.SaveChanges();
 
-            Console.WriteLine($"   ✓ Zapisano klienta: {customer.FullName}");
+            Console.WriteLine($"    Zapisano klienta: {customer.FullName}");
             Console.WriteLine($"     Właściwość 'FullName' (computed): {customer.FullName}");
-            Console.WriteLine($"     → NIE jest zapisywana w bazie (atrybut [Ignore])");
+            Console.WriteLine($"     - NIE jest zapisywana w bazie (atrybut [Ignore])");
 
             // Odczyt i weryfikacja
             var foundCustomer = context.Customers.Find(customer.Id);
             if (foundCustomer != null)
             {
-                Console.WriteLine($"\n   ✓ Po odczycie:");
+                Console.WriteLine($"\n    Po odczycie:");
                 Console.WriteLine($"     FirstName: {foundCustomer.FirstName}");
                 Console.WriteLine($"     LastName: {foundCustomer.LastName}");
                 Console.WriteLine($"     FullName (obliczony): {foundCustomer.FullName}");
@@ -107,8 +107,8 @@ public static class AttributeMappingDemo
             };
 
             Console.WriteLine($"   Produkt ma przypisaną kategorię: {product.Category.Name}");
-            Console.WriteLine($"   → Właściwość 'Category' NIE jest zapisywana w bazie");
-            Console.WriteLine($"   → Tylko 'CategoryId' (klucz obcy) jest zapisywane");
+            Console.WriteLine($"   - Właściwość 'Category' NIE jest zapisywana w bazie");
+            Console.WriteLine($"   - Tylko 'CategoryId' (klucz obcy) jest zapisywane");
 
             Console.WriteLine("\n7. Sprawdzenie metadanych mapowania:");
             var productMap = metadataStore.GetMap<Product>();
@@ -118,12 +118,12 @@ public static class AttributeMappingDemo
             Console.WriteLine($"   - Właściwości skalarne:");
             foreach (var prop in productMap.ScalarProperties)
             {
-                Console.WriteLine($"     • {prop.PropertyInfo.Name} -> {prop.ColumnName}");
+                Console.WriteLine($"     - {prop.PropertyInfo.Name} -> {prop.ColumnName}");
             }
             Console.WriteLine($"   - Właściwości nawigacyjne:");
             foreach (var prop in productMap.NavigationProperties)
             {
-                Console.WriteLine($"     • {prop.PropertyInfo.Name} (ignorowana w bazie)");
+                Console.WriteLine($"     - {prop.PropertyInfo.Name} (ignorowana w bazie)");
             }
 
             var customerMap = metadataStore.GetMap<Customer>();
@@ -132,7 +132,7 @@ public static class AttributeMappingDemo
             Console.WriteLine($"   - Właściwości skalarne:");
             foreach (var prop in customerMap.ScalarProperties)
             {
-                Console.WriteLine($"     • {prop.PropertyInfo.Name} -> {prop.ColumnName}");
+                Console.WriteLine($"     - {prop.PropertyInfo.Name} -> {prop.ColumnName}");
             }
         }
 
