@@ -24,14 +24,12 @@ public class DbContext : IDisposable
     
     public ChangeTracker ChangeTracker { get; } = new ChangeTracker();
 
-    // Database operations API (similar to EF Core)
     public DatabaseFacade Database { get; }
 
     public DbContext(DbConfiguration configuration)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        
-        // Inicjalizacja SQLite (raz dla całej aplikacji)
+
         if (!_sqliteInitialized)
         {
             lock (_initLock)
@@ -68,6 +66,9 @@ public class DbContext : IDisposable
             if (_connection.State != ConnectionState.Open)
                 _connection.Open();
         }
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = "PRAGMA foreign_keys = ON;";
+        cmd.ExecuteNonQuery();
         return _connection;
     }
 
@@ -75,23 +76,19 @@ public class DbContext : IDisposable
 
     public T? Find<T>(object id) where T : class
     {
-        // ✅ POPRAWKA: Użyj FindTracked zamiast ręcznego foreach
         var trackedEntity = ChangeTracker.FindTracked<T>(id);
         if (trackedEntity != null)
         {
             return trackedEntity;
         }
 
-        // Generate SQL query using the new interface
         var entityMap = _configuration.MetadataStore.GetMap<T>();
         var sqlQuery = _sqlGenerator.GenerateSelect(entityMap, id, _configuration.MetadataStore);
 
-        // Create and execute command
         var conn = GetConnection();
         using var command = conn.CreateCommand();
         command.CommandText = sqlQuery.Sql;
 
-        // Add parameters
         foreach (var param in sqlQuery.Parameters)
         {
             AddParameter(command, param.Key, param.Value);
@@ -118,7 +115,6 @@ public class DbContext : IDisposable
         return null;
     }
 
-    // Metoda pomocnicza dla DbSet.All() - tymczasowa, zanim wejdzie LINQ
     internal IEnumerable<T> SetInternal<T>() where T : class
     {
         var list = new List<T>();
@@ -131,17 +127,14 @@ public class DbContext : IDisposable
             Console.WriteLine($"    - {prop.PropertyInfo.Name} -> {prop.ColumnName}");
         }
 
-        // Generate SQL query using the new interface
         var sqlQuery = _sqlGenerator.GenerateSelectAll(entityMap, _configuration.MetadataStore);
 
         Console.WriteLine($"  SQL: {sqlQuery.Sql}");
 
-        // Create and execute command
         var conn = GetConnection();
         using var command = conn.CreateCommand();
         command.CommandText = sqlQuery.Sql;
 
-        // Add parameters (if any)
         foreach (var param in sqlQuery.Parameters)
         {
             AddParameter(command, param.Key, param.Value);
@@ -156,9 +149,7 @@ public class DbContext : IDisposable
         }
 
         var materializer = GetMaterializer(entityMap);
-        
-        // ✅ Dla TPH: użyj GetOrdinalsForMapWithAlias aby obsłużyć hierarchię dziedziczenia
-        // Ordinals będą odczytywane dynamicznie dla każdej konkretnej klasy podczas materializacji
+
         int[] ordinals = GetOrdinalsForReader(reader, entityMap);
 
         Console.WriteLine($"  Ordinals:");
@@ -173,19 +164,16 @@ public class DbContext : IDisposable
 
             Console.WriteLine($"[DEBUG SetInternal] Po Materialize: entity.GetHashCode()={entity.GetHashCode()}");
 
-            // Identity Map: sprawdź czy encja o tym kluczu już istnieje
             var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(entity);
             if (keyValue != null)
             {
-                // ✅ POPRAWKA TPC: Użyj FAKTYCZNEGO typu encji (entity.GetType()), nie T!
-                // Dla TPC Student (ID=1) i StudentPart (ID=1) to RÓŻNE encje!
                 var actualType = entity.GetType();
                 var tracked = ChangeTracker.FindTracked(actualType, keyValue) as T;
                 
                 if (tracked != null)
                 {
                     Console.WriteLine($"[DEBUG SetInternal] Znaleziono w ChangeTracker: tracked.GetHashCode()={tracked.GetHashCode()}, Type={tracked.GetType().Name}");
-                    list.Add(tracked); // Użyj istniejącej instancji
+                    list.Add(tracked);
                     continue;
                 }
             }
@@ -209,7 +197,6 @@ public class DbContext : IDisposable
             if (columnName == null)
                 continue;
 
-            // Spróbuj znaleźć kolumnę (bez aliasu dla SetInternal)
             for (int j = 0; j < reader.FieldCount; j++)
             {
                 if (string.Equals(reader.GetName(j), columnName, StringComparison.OrdinalIgnoreCase))
@@ -326,9 +313,6 @@ public class DbContext : IDisposable
     }
 }
 
-/// <summary>
-/// Database operations facade (similar to EF Core's Database property)
-/// </summary>
 public class DatabaseFacade
 {
     private readonly DbContext _context;
@@ -338,9 +322,6 @@ public class DatabaseFacade
         _context = context;
     }
 
-    /// <summary>
-    /// Creates the database schema for all entity types in the model.
-    /// </summary>
     public void EnsureCreated()
     {
         var connection = _context.GetConnection();
@@ -362,9 +343,6 @@ public class DatabaseFacade
         }
     }
 
-    /// <summary>
-    /// Deletes all tables from the database.
-    /// </summary>
     public void EnsureDeleted()
     {
         var connection = _context.GetConnection();
@@ -433,6 +411,7 @@ public class DatabaseFacade
     {
         var columns = new List<string>();
         var processedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var foreignKeys = new HashSet<string>();
 
         if (map.InheritanceStrategy is TablePerHierarchyStrategy)
         {
@@ -468,6 +447,36 @@ public class DatabaseFacade
                     columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
                 }
             }
+
+            foreach (var hierarchyMap in allMapsInHierarchy)
+            {
+                foreach (var nav in hierarchyMap.NavigationProperties)
+                {
+                    if (!nav.IsCollection && nav.ForeignKeyName != null && nav.TargetType != null)
+                    {
+                        var fkProp = hierarchyMap.ScalarProperties
+                            .FirstOrDefault(p => p.PropertyInfo.Name == nav.ForeignKeyName);
+
+                        if (fkProp != null && fkProp.ColumnName != null)
+                        {
+                            var targetMap = metadataStore.GetMap(nav.TargetType);
+
+                            var targetTableName = targetMap.TableName;
+                            var targetKeyName = targetMap.KeyProperty.ColumnName;
+                            if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
+                            {
+                                targetTableName = targetMap.RootMap.TableName;
+                                targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
+                            }
+
+                            foreignKeys.Add(
+                                $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
+                        }
+                    }
+                }
+            }
+
+            columns.AddRange(foreignKeys);
 
             return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
         }
@@ -511,6 +520,28 @@ public class DatabaseFacade
                 columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
             }
 
+            foreach (var fkProp in map.ScalarProperties.Where(p => p.ForeignKeyName != null))
+            {
+                var navProp = map.NavigationProperties
+                    .FirstOrDefault(n => n.PropertyInfo.Name == fkProp.ForeignKeyName);
+
+                if (navProp?.TargetType != null)
+                {
+                    var targetMap = metadataStore.GetMap(navProp.TargetType);
+                    var targetTableName = targetMap.TableName;
+                    var targetKeyName = targetMap.KeyProperty.ColumnName;
+                    if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
+                    {
+                        targetTableName = targetMap.RootMap.TableName;
+                        targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
+                    }
+
+                    foreignKeys.Add($"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
+                }
+            }
+
+            columns.AddRange(foreignKeys);
+
             return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
         }
         else
@@ -531,10 +562,32 @@ public class DatabaseFacade
                 columns.Add(columnDef);
             }
 
-            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+            foreach (var nav in map.NavigationProperties)
             {
-                columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
+                if (!nav.IsCollection && nav.ForeignKeyName != null && nav.TargetType != null)
+                {
+                    var fkProp = map.ScalarProperties
+                        .FirstOrDefault(p => p.PropertyInfo.Name == nav.ForeignKeyName);
+
+                    if (fkProp != null && fkProp.ColumnName != null)
+                    {
+                        var targetMap = metadataStore.GetMap(nav.TargetType);
+                        
+                        var targetTableName = targetMap.TableName;
+                        var targetKeyName = targetMap.KeyProperty.ColumnName;
+                        if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
+                        {
+                            targetTableName = targetMap.RootMap.TableName;
+                            targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
+                        }
+
+                        foreignKeys.Add(
+                            $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
+                    }
+                }
             }
+
+            columns.AddRange(foreignKeys);
 
             return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
         }
