@@ -318,8 +318,49 @@ namespace ORM_v1.Mapping
 
         private object ConvertValue(object value, PropertyMap prop)
         {
-            // TODO: Rozszerzyć o konwersje specyficzne dla typów
-            return Convert.ChangeType(value, prop.PropertyType);
+            var targetType = prop.PropertyType;
+            
+            // ✅ Obsługa Nullable<T>
+            var underlyingType = Nullable.GetUnderlyingType(targetType);
+            if (underlyingType != null)
+            {
+                // Property jest Nullable<T> (np. int?)
+                targetType = underlyingType;
+            }
+
+            // ✅ Obsługa SQLite Int64 → Int32 (i innych konwersji numerycznych)
+            if (value is long longValue && (targetType == typeof(int) || targetType == typeof(int?)))
+            {
+                return (int)longValue;
+            }
+
+            if (value is long longValue2 && (targetType == typeof(short) || targetType == typeof(short?)))
+            {
+                return (short)longValue2;
+            }
+
+            if (value is long longValue3 && (targetType == typeof(byte) || targetType == typeof(byte?)))
+            {
+                return (byte)longValue3;
+            }
+
+            // ✅ Obsługa Enum
+            if (targetType.IsEnum)
+            {
+                return Enum.ToObject(targetType, value);
+            }
+
+            // ✅ Standardowa konwersja (bez Nullable wrapper)
+            try
+            {
+                return Convert.ChangeType(value, targetType);
+            }
+            catch (InvalidCastException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot convert value '{value}' (type: {value.GetType().Name}) " +
+                    $"to property '{prop.PropertyInfo.Name}' (type: {prop.PropertyType.Name})", ex);
+            }
         }
 
         /// <summary>
