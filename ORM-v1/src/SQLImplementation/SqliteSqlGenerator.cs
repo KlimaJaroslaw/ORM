@@ -290,6 +290,12 @@ public class SqliteSqlGeneratorOLD : ISqlGenerator
             return GenerateUpdateForTablePerType(map, entity);
         }
 
+        var tableName = map.TableName;
+        if (map.InheritanceStrategy is TablePerHierarchyStrategy)
+        {
+            tableName = map.RootMap.TableName;
+        }
+
         var propsToUpdate = map.ScalarProperties
             .Where(p => p != map.KeyProperty)
             .ToList();
@@ -298,8 +304,8 @@ public class SqliteSqlGeneratorOLD : ISqlGenerator
             .Select(p => $"{QuoteIdentifier(p.ColumnName!)} = @{p.PropertyInfo.Name}");
 
         var builder = new SqlQueryBuilder();
-        builder.Update(QuoteIdentifier(map.TableName))
-               .Set(assignments);
+        builder.Update(QuoteIdentifier(tableName))
+            .Set(assignments);
 
         if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy && !string.IsNullOrEmpty(map.Discriminator))
         {

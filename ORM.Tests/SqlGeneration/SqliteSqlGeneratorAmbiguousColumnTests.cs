@@ -1,6 +1,7 @@
 using ORM.Tests.TestEntities;
 using ORM_v1.Mapping;
 using ORM_v1.Query;
+using ORM_v1.src.SQLImplementation;
 
 namespace ORM.Tests.SqlGeneration
 {

@@ -19,7 +19,7 @@ public class DbSet<T> : IQueryable<T> where T : class
         _expression = Expression.Constant(this);
     }
 
-    public DbSet(IQueryProvider provider, Expression expression)
+    internal DbSet(IQueryProvider provider, Expression expression)
     {
         _provider = provider;
         _expression = expression;
@@ -31,6 +31,10 @@ public class DbSet<T> : IQueryable<T> where T : class
 
     public IEnumerator<T> GetEnumerator()
     {
+        if (_expression is ConstantExpression && _context != null)
+        {
+            return _context.SetInternal<T>().GetEnumerator();
+        }
         return Provider.Execute<IEnumerable<T>>(Expression).GetEnumerator();
     }
 

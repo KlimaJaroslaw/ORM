@@ -120,16 +120,7 @@ public class DbContext : IDisposable
         var list = new List<T>();
         var entityMap = _configuration.MetadataStore.GetMap<T>();
 
-        Console.WriteLine($"\n[DEBUG SetInternal] EntityMap for {typeof(T).Name}:");
-        Console.WriteLine($"  ScalarProperties.Count = {entityMap.ScalarProperties.Count}");
-        foreach (var prop in entityMap.ScalarProperties)
-        {
-            Console.WriteLine($"    - {prop.PropertyInfo.Name} -> {prop.ColumnName}");
-        }
-
         var sqlQuery = _sqlGenerator.GenerateSelectAll(entityMap, _configuration.MetadataStore);
-
-        Console.WriteLine($"  SQL: {sqlQuery.Sql}");
 
         var conn = GetConnection();
         using var command = conn.CreateCommand();
@@ -142,29 +133,58 @@ public class DbContext : IDisposable
 
         using var reader = command.ExecuteReader();
 
-        Console.WriteLine($"  Reader fields ({reader.FieldCount}):");
-        for (int i = 0; i < reader.FieldCount; i++)
+        var isTph = entityMap.InheritanceStrategy is TablePerHierarchyStrategy;
+        string? discriminatorCol = null;
+        if (isTph)
         {
-            Console.WriteLine($"    [{i}] {reader.GetName(i)}");
+            discriminatorCol = (entityMap.InheritanceStrategy as TablePerHierarchyStrategy)!.DiscriminatorColumn;
         }
 
-        var materializer = GetMaterializer(entityMap);
-
-        int[] ordinals = GetOrdinalsForReader(reader, entityMap);
-
-        Console.WriteLine($"  Ordinals:");
-        for (int i = 0; i < ordinals.Length; i++)
+        int[]? cachedOrdinals = null;
+        if (!isTph)
         {
-            Console.WriteLine($"    [{i}] {entityMap.ScalarProperties[i].PropertyInfo.Name} -> ordinal={ordinals[i]}");
+            cachedOrdinals = GetOrdinalsForReader(reader, entityMap);
         }
 
         while (reader.Read())
         {
+            EntityMap concreteMap = entityMap;
+            if (isTph && discriminatorCol != null)
+            {
+                try
+                {
+                    int discIndex = -1;
+                    for(int i=0; i<reader.FieldCount; i++) 
+                    {
+                        if(reader.GetName(i).Equals(discriminatorCol, StringComparison.OrdinalIgnoreCase)) 
+                        {
+                            discIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (discIndex >= 0 && !reader.IsDBNull(discIndex))
+                    {
+                        var discValue = reader.GetString(discIndex);
+                        var foundMap = _configuration.MetadataStore.GetEntityMapByDiscriminator(typeof(T), discValue);
+                        if (foundMap != null)
+                        {
+                            concreteMap = foundMap;
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+
+            var materializer = GetMaterializer(concreteMap);
+            
+            int[] ordinals = isTph ? GetOrdinalsForReader(reader, concreteMap) : cachedOrdinals!;
+
             var entity = (T)materializer.Materialize(reader, ordinals);
-
-            Console.WriteLine($"[DEBUG SetInternal] Po Materialize: entity.GetHashCode()={entity.GetHashCode()}");
-
-            var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(entity);
+            
+            var keyValue = concreteMap.KeyProperty.PropertyInfo.GetValue(entity);
             if (keyValue != null)
             {
                 var actualType = entity.GetType();
@@ -172,14 +192,12 @@ public class DbContext : IDisposable
                 
                 if (tracked != null)
                 {
-                    Console.WriteLine($"[DEBUG SetInternal] Znaleziono w ChangeTracker: tracked.GetHashCode()={tracked.GetHashCode()}, Type={tracked.GetType().Name}");
                     list.Add(tracked);
                     continue;
                 }
             }
 
             ChangeTracker.Track(entity, EntityState.Unchanged);
-            Console.WriteLine($"[DEBUG SetInternal] Dodaję do listy: entity.GetHashCode()={entity.GetHashCode()}, Type={entity.GetType().Name}");
             list.Add(entity);
         }
         return list;
@@ -562,28 +580,40 @@ public class DatabaseFacade
                 columns.Add(columnDef);
             }
 
-            foreach (var nav in map.NavigationProperties)
+            foreach (var fkProp in map.ScalarProperties.Where(p => p.ForeignKeyName != null))
             {
-                if (!nav.IsCollection && nav.ForeignKeyName != null && nav.TargetType != null)
+                var navProp = map.NavigationProperties
+                    .FirstOrDefault(n => n.PropertyInfo.Name == fkProp.ForeignKeyName);
+
+                Type? targetType = null;
+
+                if (navProp != null)
                 {
-                    var fkProp = map.ScalarProperties
-                        .FirstOrDefault(p => p.PropertyInfo.Name == nav.ForeignKeyName);
-
-                    if (fkProp != null && fkProp.ColumnName != null)
+                    targetType = navProp.TargetType;
+                }
+                else 
+                {
+                    var propInfo = map.EntityType.GetProperty(fkProp.ForeignKeyName);
+                    if (propInfo != null)
                     {
-                        var targetMap = metadataStore.GetMap(nav.TargetType);
-                        
-                        var targetTableName = targetMap.TableName;
-                        var targetKeyName = targetMap.KeyProperty.ColumnName;
-                        if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
-                        {
-                            targetTableName = targetMap.RootMap.TableName;
-                            targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
-                        }
-
-                        foreignKeys.Add(
-                            $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
+                        targetType = propInfo.PropertyType;
                     }
+                }
+
+                if (targetType != null && fkProp.ColumnName != null)
+                {
+                    var targetMap = metadataStore.GetMap(targetType);
+
+                    var targetTableName = targetMap.TableName;
+                    var targetKeyName = targetMap.KeyProperty.ColumnName;
+                    if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
+                    {
+                        targetTableName = targetMap.RootMap.TableName;
+                        targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
+                    }
+
+                    foreignKeys.Add(
+                        $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
                 }
             }
 

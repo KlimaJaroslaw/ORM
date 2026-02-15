@@ -1127,6 +1127,15 @@ public class SqliteSqlGenerator : ISqlGenerator
     /// </summary>
     private SqlQuery GenerateUpdateSimple(EntityMap map, object entity)
     {
+
+        var tableName = map.TableName;
+        var keyColName = map.KeyProperty.ColumnName!;
+
+        if (map.InheritanceStrategy is TablePerHierarchyStrategy)
+        {
+            tableName = map.RootMap.TableName;
+            keyColName = map.RootMap.KeyProperty.ColumnName!;
+        }
         var propsToUpdate = map.ScalarProperties
             .Where(p => p != map.KeyProperty)
             .ToList();
@@ -1135,17 +1144,17 @@ public class SqliteSqlGenerator : ISqlGenerator
             .Select(p => $"{QuoteIdentifier(p.ColumnName!)} = @{p.PropertyInfo.Name}");
 
         var builder = new SqlQueryBuilder();
-        builder.Update(QuoteIdentifier(map.TableName))
+        builder.Update(QuoteIdentifier(tableName))
                .Set(assignments);
 
         // WHERE: Key + opcjonalnie Discriminator (TPH)
         if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy && !string.IsNullOrEmpty(map.Discriminator))
         {
-            builder.Where($"{QuoteIdentifier(map.KeyProperty.ColumnName!)} = @{map.KeyProperty.PropertyInfo.Name} AND {QuoteIdentifier(tphStrategy.DiscriminatorColumn)} = @Discriminator");
+            builder.Where($"{QuoteIdentifier(keyColName)} = @{map.KeyProperty.PropertyInfo.Name} AND {QuoteIdentifier(tphStrategy.DiscriminatorColumn)} = @Discriminator");
         }
         else
         {
-            builder.Where($"{QuoteIdentifier(map.KeyProperty.ColumnName!)} = @{map.KeyProperty.PropertyInfo.Name}");
+            builder.Where($"{QuoteIdentifier(keyColName)} = @{map.KeyProperty.PropertyInfo.Name}");
         }
 
         var parameters = new Dictionary<string, object>();
