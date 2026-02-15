@@ -19,7 +19,7 @@ public class DbSet<T> : IQueryable<T> where T : class
         _expression = Expression.Constant(this);
     }
 
-    internal DbSet(IQueryProvider provider, Expression expression)
+    public DbSet(IQueryProvider provider, Expression expression)
     {
         _provider = provider;
         _expression = expression;

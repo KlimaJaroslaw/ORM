@@ -51,20 +51,24 @@ namespace ORM_v1.Mapping
             if (baseMap != null)
             {
                 // --- Jesteśmy DZIECKIEM ---
-                if (ownTableAttr != null)
+                // ✅ Strategia dziedziczenia MUSI być zgodna z root/parent!
+                
+                if (strategyAttr != null)
                 {
-                    if (strategyAttr != null && strategyAttr.Strategy == InheritanceStrategy.TablePerType)
-                    {
-                        strategyType = InheritanceStrategy.TablePerType;
-                    }
-                    else
-                    {
-                        strategyType = InheritanceStrategy.TablePerConcreteClass;
-                    }
+                    // Rodzic ma jawnie zdefiniowaną strategię - używamy jej
+                    strategyType = strategyAttr.Strategy;
                 }
                 else
                 {
-                    strategyType = InheritanceStrategy.TablePerHierarchy;
+                    // Brak strategii na root - heurystyka
+                    if (ownTableAttr != null)
+                    {
+                        strategyType = InheritanceStrategy.TablePerConcreteClass;
+                    }
+                    else
+                    {
+                        strategyType = InheritanceStrategy.TablePerHierarchy;
+                    }
                 }
             }
             else 

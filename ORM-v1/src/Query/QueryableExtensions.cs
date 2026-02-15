@@ -7,6 +7,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using ORM_v1.core;
 using ORM_v1.Mapping;
+using ORM_v1.src.SQLImplementation;
 
 namespace ORM_v1.Query;
 
@@ -107,7 +108,8 @@ public static class QueryableExtensions
             new IncludeInfo(propertyName, navigationPropertyPath)
         };
 
-        return new IncludableQueryable<TEntity, TProperty2>(source, source.Context, includes);
+        // ✅ Przekaż predicate z source!
+        return new IncludableQueryable<TEntity, TProperty2>(source, source.Context, includes, source.Predicate);
     }
 
     /// <summary>
@@ -136,7 +138,8 @@ public static class QueryableExtensions
             new IncludeInfo(propertyName, navigationPropertyPath, fullPath)
         };
 
-        return new IncludableQueryable<TEntity, TProperty>(source, source.Context, includes);
+        // ✅ Przekaż predicate z source!
+        return new IncludableQueryable<TEntity, TProperty>(source, source.Context, includes, source.Predicate);
     }
 
     /// <summary>
@@ -165,7 +168,24 @@ public static class QueryableExtensions
             new IncludeInfo(propertyName, navigationPropertyPath, fullPath)
         };
 
-        return new IncludableQueryable<TEntity, TProperty>(source, source.Context, includes);
+        // ✅ Przekaż predicate z source!
+        return new IncludableQueryable<TEntity, TProperty>(source, source.Context, includes, source.Predicate);
+    }
+
+    /// <summary>
+    /// Filtrowanie po Include - WHERE clause.
+    /// Przykład: context.Products.Include(p => p.Category).Where(p => p.Price > 100).ToList()
+    /// </summary>
+    public static IncludableQueryable<TEntity, TProperty> Where<TEntity, TProperty>(
+        this IncludableQueryable<TEntity, TProperty> source,
+        Expression<Func<TEntity, bool>> predicate)
+        where TEntity : class
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        if (predicate == null) throw new ArgumentNullException(nameof(predicate));
+
+        // Zwróć nowy IncludableQueryable z dodanym predicate
+        return new IncludableQueryable<TEntity, TProperty>(source, source.Context, source.Includes, predicate);
     }
 
     /// <summary>
@@ -182,23 +202,36 @@ public static class QueryableExtensions
         var metadataStore = context.GetConfiguration().MetadataStore;
         var entityMap = metadataStore.GetMap<TEntity>();
 
+        // ✅ Użyj SqlGenerator aby poznać poprawny alias (tStudent zamiast student)
+        var sqlGenerator = new SqliteSqlGenerator();
+        var tableAlias = sqlGenerator.GetTableAlias(entityMap, metadataStore);
+
         // Buduj QueryModel z WHERE clause
         var queryModel = new QueryModel
         {
             PrimaryEntity = entityMap,
-            SelectAllColumns = true
+            PrimaryEntityAlias = tableAlias
         };
 
-        // Konwertuj Expression<Func<T, bool>> na SQL WHERE
-        var whereTranslator = new ExpressionToSqlConverter(entityMap);
+        // Konwertuj Expression<Func<T, boolean>> na SQL WHERE
+        var whereTranslator = new ExpressionToSqlConverter(entityMap, tableAlias);
         var (whereClause, parameters) = whereTranslator.Translate(source.Predicate);
 
         queryModel.WhereClause = whereClause;
         queryModel.Parameters = parameters;
 
         // Generuj SQL
-        var sqlGenerator = new SqliteSqlGenerator();
-        var sqlQuery = sqlGenerator.GenerateComplexSelect(entityMap, queryModel);
+        var sqlQuery = sqlGenerator.GenerateComplexSelect(entityMap, queryModel, metadataStore);
+
+        // 🔍 DEBUG: Loguj wygenerowane SQL
+        Console.WriteLine("\n========== SQL QUERY (Where) ==========");
+        Console.WriteLine(sqlQuery.Sql);
+        Console.WriteLine("Parameters:");
+        foreach (var param in sqlQuery.Parameters)
+        {
+            Console.WriteLine($"  {param.Key} = {param.Value}");
+        }
+        Console.WriteLine("=======================================\n");
 
         // Wykonaj zapytanie
         var connection = GetConnectionFromContext(context);
@@ -216,7 +249,7 @@ public static class QueryableExtensions
         // Materializuj encje
         using var reader = command.ExecuteReader();
         var materializer = new ObjectMaterializer(entityMap, metadataStore);
-        var ordinals = GetOrdinals(reader, entityMap, null); // null tableAlias dla prostego SELECT
+        var ordinals = GetOrdinals(reader, entityMap, tableAlias);
         var entities = new List<TEntity>();
 
         while (reader.Read())
@@ -225,6 +258,8 @@ public static class QueryableExtensions
             context.ChangeTracker.Track(entity, EntityState.Unchanged);
             entities.Add(entity);
         }
+
+        Console.WriteLine($"[DEBUG] Zwrócono {entities.Count} encji\n");
 
         return entities;
     }
@@ -255,7 +290,7 @@ public static class QueryableExtensions
         // Dodaj WHERE clause jeśli istnieje
         if (source.Predicate != null)
         {
-            var whereTranslator = new ExpressionToSqlConverter(entityMap);
+            var whereTranslator = new ExpressionToSqlConverter(entityMap, queryModel.PrimaryEntityAlias);
             var (whereClause, parameters) = whereTranslator.Translate(source.Predicate);
             queryModel.WhereClause = whereClause;
             queryModel.Parameters = parameters;
@@ -263,7 +298,17 @@ public static class QueryableExtensions
 
         // Generuj SQL z JOINami (używamy nowej instancji SqliteSqlGenerator)
         var sqlGenerator = new SqliteSqlGenerator();
-        var sqlQuery = sqlGenerator.GenerateComplexSelect(entityMap, queryModel);
+        var sqlQuery = sqlGenerator.GenerateComplexSelect(entityMap, queryModel, metadataStore);
+
+        // 🔍 DEBUG: Loguj wygenerowane SQL
+        Console.WriteLine("\n========== SQL QUERY (Include) ==========");
+        Console.WriteLine(sqlQuery.Sql);
+        Console.WriteLine("Parameters:");
+        foreach (var param in sqlQuery.Parameters)
+        {
+            Console.WriteLine($"  {param.Key} = {param.Value}");
+        }
+        Console.WriteLine("==========================================\n");
 
         // Wykonaj zapytanie
         var connection = GetConnectionFromContext(context);
@@ -289,6 +334,8 @@ public static class QueryableExtensions
             queryModel.IncludeJoins,
             metadataStore,
             context);
+
+        Console.WriteLine($"[DEBUG] Zwrócono {entities.Count} encji\n");
 
         return entities;
     }
@@ -322,11 +369,16 @@ public static class QueryableExtensions
         List<IncludeInfo> includes,
         IMetadataStore metadataStore)
     {
+        Console.WriteLine($"[DEBUG] BuildQueryModelWithIncludes: entityMap={entityMap.EntityType.Name}, includes.Count={includes.Count}");
+
+        // ✅ Użyj SqlGenerator aby poznać poprawny alias (tTeacher zamiast teacher_main)
+        var sqlGenerator = new SqliteSqlGenerator();
+        var primaryEntityAlias = sqlGenerator.GetTableAlias(entityMap, metadataStore);
+
         var queryModel = new QueryModel
         {
             PrimaryEntity = entityMap,
-            PrimaryEntityAlias = entityMap.TableName.ToLowerInvariant() + "_main",
-            SelectAllColumns = true
+            PrimaryEntityAlias = primaryEntityAlias
         };
 
         int aliasIndex = 0;
@@ -337,11 +389,14 @@ public static class QueryableExtensions
 
         foreach (var include in includes)
         {
+            Console.WriteLine($"[DEBUG]   Include: {include.NavigationPropertyName}, IsNested={include.IsNested}, FullPath={include.FullPath}");
+
             // Dla prostych includes - przetwarzamy normalnie
             // Dla zagnieżdżonych - pomijamy, bo zostaną przetworzone rekurencyjnie
             if (include.IsNested)
             {
                 // Zagnieżdżony include zostanie przetworzony jako część swojego rodzica
+                Console.WriteLine($"[DEBUG]     -> Pomijam (zagnieżdżony)");
                 continue;
             }
 
@@ -355,6 +410,8 @@ public static class QueryableExtensions
                 queryModel.PrimaryEntityAlias,
                 processedPaths);
         }
+
+        Console.WriteLine($"[DEBUG] QueryModel: Joins.Count={queryModel.Joins.Count}, IncludeJoins.Count={queryModel.IncludeJoins.Count}");
 
         return queryModel;
     }
@@ -374,7 +431,7 @@ public static class QueryableExtensions
     {
         var currentPath = currentInclude.FullPath;
 
-        // Sprawdź czy już przetworzyliśmy tę ścieżkę
+        // Sprawdź czy już przetwarzaliśmy tę ścieżkę
         if (!processedPaths.Add(currentPath))
         {
             return; // Już przetworzona
@@ -514,26 +571,33 @@ public static class QueryableExtensions
         // Dictionary<entity object reference, Dictionary<propertyName, IList>>
         var collectionsByEntity = new Dictionary<object, Dictionary<string, IList>>();
 
+        int rowCount = 0;
         while (reader.Read())
         {
+            rowCount++;
             // 1. MATERIALIZUJ ROOT ENTITY
             var tempEntity = (TEntity)materializer.Materialize(reader, primaryOrdinals);
             var primaryKey = entityMap.KeyProperty.PropertyInfo.GetValue(tempEntity)!;
 
+            Console.WriteLine($"[DEBUG] Wiersz #{rowCount}: PrimaryKey={primaryKey}, Type={typeof(TEntity).Name}");
+
             TEntity entity;
             if (!entitiesDict.ContainsKey(primaryKey))
             {
+                Console.WriteLine($"[DEBUG]   -> Nowa encja, dodaję do słownika");
                 // Sprawdź czy już śledzona w ChangeTracker (Identity Map)
                 var trackedEntity = context.ChangeTracker.FindTracked(typeof(TEntity), primaryKey) as TEntity;
 
                 if (trackedEntity != null)
                 {
                     entity = trackedEntity;
+                    Console.WriteLine($"[DEBUG]   -> Znaleziono w ChangeTracker");
                 }
                 else
                 {
                     entity = tempEntity;
                     context.ChangeTracker.Track(entity, EntityState.Unchanged);
+                    Console.WriteLine($"[DEBUG]   -> Nowa instancja, dodano do ChangeTracker");
                 }
 
                 entitiesDict[primaryKey] = entity;
@@ -542,6 +606,7 @@ public static class QueryableExtensions
             else
             {
                 entity = entitiesDict[primaryKey];
+                Console.WriteLine($"[DEBUG]   -> Encja już istnieje w słowniku (duplikat PK)");
             }
 
             // 2. MATERIALIZUJ ZAGNIEŻDŻONE ENCJE W HIERARCHII
@@ -663,6 +728,7 @@ public static class QueryableExtensions
     /// <summary>
     /// Pobiera ordinals (indeksy kolumn) dla danego EntityMap z DataReader.
     /// Używa aliasów kolumn (tableAlias_columnName) aby uniknąć konfliktów w JOIN.
+    /// ✅ OBSŁUGUJE TPT: szuka kolumn w odpowiednich tabelach hierarchii!
     /// </summary>
     private static int[] GetOrdinals(IDataReader reader, EntityMap map, string? tableAlias)
     {
@@ -677,11 +743,32 @@ public static class QueryableExtensions
             if (columnName == null)
                 continue;
 
-            // W przypadku JOIN z aliasem, szukaj "tableAlias_columnName"
+            // ✅ Dla TPT: znajdź z której tabeli pochodzi ta kolumna
             string searchName;
             if (!string.IsNullOrEmpty(tableAlias))
             {
-                searchName = $"{tableAlias}_{columnName}";
+                // Sprawdź czy to TPT i czy kolumna pochodzi z klasy bazowej
+                if (map.InheritanceStrategy is ORM_v1.Mapping.Strategies.TablePerTypeStrategy)
+                {
+                    // Znajdź EntityMap który definiuje tę kolumnę (może być w rodzicu)
+                    var owningMap = FindOwningMapForColumn(map, columnName);
+                    if (owningMap != null && owningMap != map)
+                    {
+                        // Kolumna pochodzi z rodzica - użyj aliasu rodzica
+                        var parentAlias = $"t{owningMap.EntityType.Name}";
+                        searchName = $"{parentAlias}_{columnName}";
+                    }
+                    else
+                    {
+                        // Kolumna pochodzi z tej klasy
+                        searchName = $"{tableAlias}_{columnName}";
+                    }
+                }
+                else
+                {
+                    // Dla innych strategii (TPH, TPC, None)
+                    searchName = $"{tableAlias}_{columnName}";
+                }
             }
             else
             {
@@ -701,6 +788,43 @@ public static class QueryableExtensions
         }
 
         return ordinals;
+    }
+
+    /// <summary>
+    /// Znajduje EntityMap który definiuje daną kolumnę (dla TPT może być w rodzicu).
+    /// </summary>
+    private static EntityMap? FindOwningMapForColumn(EntityMap map, string columnName)
+    {
+        // Sprawdź czy kolumna jest w obecnej mapie (nie dziedziczona)
+        var hasColumn = map.ScalarProperties.Any(p => 
+            string.Equals(p.ColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+
+        if (hasColumn && map.BaseMap == null)
+        {
+            // Jest w tej mapie i to jest root - zwróć tę mapę
+            return map;
+        }
+
+        if (hasColumn && map.BaseMap != null)
+        {
+            // Sprawdź czy nie jest dziedziczona z rodzica
+            var isInherited = map.BaseMap.ScalarProperties.Any(p =>
+                string.Equals(p.ColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+
+            if (!isInherited)
+            {
+                // Nie jest dziedziczona - zwróć tę mapę
+                return map;
+            }
+        }
+
+        // Szukaj w rodzicu (rekurencyjnie)
+        if (map.BaseMap != null)
+        {
+            return FindOwningMapForColumn(map.BaseMap, columnName);
+        }
+
+        return map; // Fallback
     }
 
     /// <summary>

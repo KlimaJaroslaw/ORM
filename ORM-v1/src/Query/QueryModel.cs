@@ -2,21 +2,30 @@
 
 namespace ORM_v1.Query
 {
+    /// <summary>
+    /// Model zapytania SQL - reprezentuje żądanie SELECT z opcjonalnymi filtrami, JOINami i sortowaniem.
+    /// Kolumny SELECT są dedukowane automatycznie na podstawie EntityMap i inheritance strategy.
+    /// </summary>
     public class QueryModel
     {
         public EntityMap PrimaryEntity { get; set; } = null!;
         public string? PrimaryEntityAlias { get; set; }
-        public List<PropertyMap> SelectColumns { get; set; } = new();
-        public bool SelectAllColumns { get; set; } = true;
-        public bool Distinct { get; set; } = false;
+        
+        /// <summary>
+        /// JOIN-y dla navigation properties (Include).
+        /// </summary>
         public List<JoinClause> Joins { get; set; } = new();
+        
         public string? WhereClause { get; set; }
         public Dictionary<string, object> Parameters { get; set; } = new();
+        
         public List<PropertyMap> GroupByColumns { get; set; } = new();
         public string? HavingClause { get; set; }
         public List<OrderByClause> OrderBy { get; set; } = new();
+        
         public int? Take { get; set; }
         public int? Skip { get; set; }
+        
         public List<AggregateFunction> Aggregates { get; set; } = new();
 
         /// <summary>

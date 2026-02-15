@@ -2,6 +2,7 @@
 using ORM_v1.Mapping;
 using ORM_v1.Mapping.Strategies;
 using ORM_v1.Query;
+using ORM_v1.src.SQLImplementation;
 using System.Collections.Concurrent;
 using System.Data;
 
@@ -18,6 +19,9 @@ public class DbContext : IDisposable
     private bool _disposed;
 
     private static readonly ConcurrentDictionary<EntityMap, ObjectMaterializer> _materializerCache = new();
+    private static bool _sqliteInitialized = false;
+    private static readonly object _initLock = new();
+    
     public ChangeTracker ChangeTracker { get; } = new ChangeTracker();
 
     // Database operations API (similar to EF Core)
@@ -26,6 +30,20 @@ public class DbContext : IDisposable
     public DbContext(DbConfiguration configuration)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        
+        // Inicjalizacja SQLite (raz dla całej aplikacji)
+        if (!_sqliteInitialized)
+        {
+            lock (_initLock)
+            {
+                if (!_sqliteInitialized)
+                {
+                    SQLitePCL.Batteries.Init();
+                    _sqliteInitialized = true;
+                }
+            }
+        }
+        
         _connectionFactory = new ConnectionFactory(_configuration.ConnectionString);
 
         _sqlGenerator = new SqliteSqlGenerator();
@@ -71,7 +89,7 @@ public class DbContext : IDisposable
 
         // Generate SQL query using the new interface
         var entityMap = _configuration.MetadataStore.GetMap<T>();
-        var sqlQuery = _sqlGenerator.GenerateSelect(entityMap, id);
+        var sqlQuery = _sqlGenerator.GenerateSelect(entityMap, id, _configuration.MetadataStore);
 
         // Create and execute command
         var conn = GetConnection();
@@ -111,8 +129,17 @@ public class DbContext : IDisposable
         var list = new List<T>();
         var entityMap = _configuration.MetadataStore.GetMap<T>();
 
+        Console.WriteLine($"\n[DEBUG SetInternal] EntityMap for {typeof(T).Name}:");
+        Console.WriteLine($"  ScalarProperties.Count = {entityMap.ScalarProperties.Count}");
+        foreach (var prop in entityMap.ScalarProperties)
+        {
+            Console.WriteLine($"    - {prop.PropertyInfo.Name} -> {prop.ColumnName}");
+        }
+
         // Generate SQL query using the new interface
-        var sqlQuery = _sqlGenerator.GenerateSelectAll(entityMap);
+        var sqlQuery = _sqlGenerator.GenerateSelectAll(entityMap, _configuration.MetadataStore);
+
+        Console.WriteLine($"  SQL: {sqlQuery.Sql}");
 
         // Create and execute command
         var conn = GetConnection();
@@ -127,35 +154,77 @@ public class DbContext : IDisposable
 
         using var reader = command.ExecuteReader();
 
-        var materializer = GetMaterializer(entityMap);
-        int[] ordinals = new int[entityMap.ScalarProperties.Count];
-        for (int i = 0; i < entityMap.ScalarProperties.Count; i++)
+        Console.WriteLine($"  Reader fields ({reader.FieldCount}):");
+        for (int i = 0; i < reader.FieldCount; i++)
         {
-            string colName = entityMap.ScalarProperties[i].ColumnName!;
-            try { ordinals[i] = reader.GetOrdinal(colName); }
-            catch { ordinals[i] = -1; }
+            Console.WriteLine($"    [{i}] {reader.GetName(i)}");
+        }
+
+        var materializer = GetMaterializer(entityMap);
+        
+        // ✅ Dla TPH: użyj GetOrdinalsForMapWithAlias aby obsłużyć hierarchię dziedziczenia
+        // Ordinals będą odczytywane dynamicznie dla każdej konkretnej klasy podczas materializacji
+        int[] ordinals = GetOrdinalsForReader(reader, entityMap);
+
+        Console.WriteLine($"  Ordinals:");
+        for (int i = 0; i < ordinals.Length; i++)
+        {
+            Console.WriteLine($"    [{i}] {entityMap.ScalarProperties[i].PropertyInfo.Name} -> ordinal={ordinals[i]}");
         }
 
         while (reader.Read())
         {
             var entity = (T)materializer.Materialize(reader, ordinals);
 
+            Console.WriteLine($"[DEBUG SetInternal] Po Materialize: entity.GetHashCode()={entity.GetHashCode()}");
+
             // Identity Map: sprawdź czy encja o tym kluczu już istnieje
             var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(entity);
             if (keyValue != null)
             {
-                var tracked = ChangeTracker.FindTracked<T>(keyValue);
+                // ✅ POPRAWKA TPC: Użyj FAKTYCZNEGO typu encji (entity.GetType()), nie T!
+                // Dla TPC Student (ID=1) i StudentPart (ID=1) to RÓŻNE encje!
+                var actualType = entity.GetType();
+                var tracked = ChangeTracker.FindTracked(actualType, keyValue) as T;
+                
                 if (tracked != null)
                 {
+                    Console.WriteLine($"[DEBUG SetInternal] Znaleziono w ChangeTracker: tracked.GetHashCode()={tracked.GetHashCode()}, Type={tracked.GetType().Name}");
                     list.Add(tracked); // Użyj istniejącej instancji
                     continue;
                 }
             }
 
             ChangeTracker.Track(entity, EntityState.Unchanged);
+            Console.WriteLine($"[DEBUG SetInternal] Dodaję do listy: entity.GetHashCode()={entity.GetHashCode()}, Type={entity.GetType().Name}");
             list.Add(entity);
         }
         return list;
+    }
+
+    private int[] GetOrdinalsForReader(IDataReader reader, EntityMap map)
+    {
+        var ordinals = new int[map.ScalarProperties.Count];
+        for (int i = 0; i < map.ScalarProperties.Count; i++)
+        {
+            var prop = map.ScalarProperties[i];
+            ordinals[i] = -1;
+            
+            var columnName = prop.ColumnName;
+            if (columnName == null)
+                continue;
+
+            // Spróbuj znaleźć kolumnę (bez aliasu dla SetInternal)
+            for (int j = 0; j < reader.FieldCount; j++)
+            {
+                if (string.Equals(reader.GetName(j), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    ordinals[i] = j;
+                    break;
+                }
+            }
+        }
+        return ordinals;
     }
 
     public void SaveChanges()
@@ -397,19 +466,59 @@ public class DatabaseFacade
                 }
             }
 
-            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
-            {
-                if (processedColumns.Add(tphStrategy.DiscriminatorColumn))
+                if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
                 {
-                    columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
+                    if (processedColumns.Add(tphStrategy.DiscriminatorColumn))
+                    {
+                        columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
+                    }
                 }
-            }
 
-            return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
-        }
-        else if (map.InheritanceStrategy is TablePerTypeStrategy)
-        {
-            if (map.BaseMap == null)
+                return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
+            }
+            else if (map.InheritanceStrategy is TablePerTypeStrategy)
+            {
+                if (map.BaseMap == null)
+                {
+                    foreach (var prop in map.ScalarProperties)
+                    {
+                        var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+                        if (prop == map.KeyProperty)
+                        {
+                            columnDef += " PRIMARY KEY";
+                            if (map.HasAutoIncrementKey)
+                            {
+                                columnDef += " AUTOINCREMENT";
+                            }
+                        }
+
+                        columns.Add(columnDef);
+                    }
+                }
+                else
+                {
+                    foreach (var prop in map.ScalarProperties)
+                    {
+                        var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp =>
+                            string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                        if (!isInheritedColumn)
+                        {
+                            columns.Add($"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}");
+                        }
+                        else if (string.Equals(prop.ColumnName, map.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            columns.Add($"\"{prop.ColumnName}\" INTEGER PRIMARY KEY");
+                        }
+                    }
+
+                    columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
+                }
+
+                return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+            }
+            else
             {
                 foreach (var prop in map.ScalarProperties)
                 {
@@ -426,84 +535,45 @@ public class DatabaseFacade
 
                     columns.Add(columnDef);
                 }
-            }
-            else
-            {
-                foreach (var prop in map.ScalarProperties)
-                {
-                    var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp =>
-                        string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
 
-                    if (!isInheritedColumn)
-                    {
-                        columns.Add($"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}");
-                    }
-                    else if (string.Equals(prop.ColumnName, map.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        columns.Add($"\"{prop.ColumnName}\" INTEGER PRIMARY KEY");
-                    }
+                if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+                {
+                    columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
                 }
 
-                columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
+                return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
             }
-
-            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
         }
-        else
-        {
-            foreach (var prop in map.ScalarProperties)
-            {
-                var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
 
-                if (prop == map.KeyProperty)
+        private List<EntityMap> GetAllMapsInTPHHierarchy(EntityMap rootMap, IMetadataStore metadataStore)
+        {
+            var result = new List<EntityMap> { rootMap };
+
+            foreach (var map in metadataStore.GetAllMaps())
+            {
+                if (map != rootMap &&
+                    map.InheritanceStrategy is TablePerHierarchyStrategy &&
+                    map.RootMap == rootMap)
                 {
-                    columnDef += " PRIMARY KEY";
-                    if (map.HasAutoIncrementKey)
-                    {
-                        columnDef += " AUTOINCREMENT";
-                    }
+                    result.Add(map);
                 }
-
-                columns.Add(columnDef);
             }
 
-            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
-            {
-                columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
-            }
-
-            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+            return result;
         }
-    }
 
-    private List<EntityMap> GetAllMapsInTPHHierarchy(EntityMap rootMap, IMetadataStore metadataStore)
-    {
-        var result = new List<EntityMap> { rootMap };
-
-        foreach (var map in metadataStore.GetAllMaps())
+        private string GetSqliteType(Type type)
         {
-            if (map != rootMap &&
-                map.InheritanceStrategy is TablePerHierarchyStrategy &&
-                map.RootMap == rootMap)
-            {
-                result.Add(map);
-            }
-        }
+            type = Nullable.GetUnderlyingType(type) ?? type;
 
-        return result;
-    }
+            if (type == typeof(int) || type == typeof(long) || type == typeof(bool) || type.IsEnum)
+                return "INTEGER";
+            if (type == typeof(decimal) || type == typeof(double) || type == typeof(float))
+                return "REAL";
+            if (type == typeof(DateTime))
+                return "TEXT";
 
-    private string GetSqliteType(Type type)
-    {
-        type = Nullable.GetUnderlyingType(type) ?? type;
-
-        if (type == typeof(int) || type == typeof(long) || type == typeof(bool) || type.IsEnum)
-            return "INTEGER";
-        if (type == typeof(decimal) || type == typeof(double) || type == typeof(float))
-            return "REAL";
-        if (type == typeof(DateTime))
             return "TEXT";
-
-        return "TEXT";
+        }
     }
-}
+

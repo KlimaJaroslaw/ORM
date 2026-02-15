@@ -3,8 +3,10 @@ using ORM_v1.Mapping.Strategies;
 using ORM_v1.Query;
 using System.Data;
 
-public class SqliteSqlGenerator : ISqlGenerator
+public class SqliteSqlGeneratorOLD : ISqlGenerator
 {
+    private IMetadataStore? _metadataStore;
+
     public string GetParameterName(string name, int index)
     {
         return $"@{name}{index}";
@@ -15,8 +17,24 @@ public class SqliteSqlGenerator : ISqlGenerator
         return $"\"{name}\"";
     }
 
-    public SqlQuery GenerateSelect(EntityMap map, object id)
+    /// <summary>
+    /// Zwraca alias tabeli dla danej encji według strategii dziedziczenia.
+    /// </summary>
+    public string GetTableAlias(EntityMap map, IMetadataStore metadataStore)
     {
+        _metadataStore = metadataStore;
+        
+        if (map.InheritanceStrategy is TablePerTypeStrategy)
+        {
+            return $"t{map.EntityType.Name}";
+        }
+        
+        return map.TableName.ToLowerInvariant();
+    }
+
+    public SqlQuery GenerateSelect(EntityMap map, object id, IMetadataStore metadataStore)
+    {
+        _metadataStore = metadataStore;
         var builder = new SqlQueryBuilder();
 
         var columns = GetColumnsForSelect(map);
@@ -37,9 +55,12 @@ public class SqliteSqlGenerator : ISqlGenerator
 
         whereConditions.Add($"{keyColumnRef} = @id");
 
-        if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy && !string.IsNullOrEmpty(map.Discriminator))
+        // ✅ Użyj wspólnej metody dla TPH discriminator filtering
+        var tableAliasForDiscriminator = map.InheritanceStrategy is TablePerTypeStrategy ? $"t{map.EntityType.Name}" : null;
+        var (discriminatorWhere, discriminatorParams) = BuildDiscriminatorFilter(map, metadataStore, tableAliasForDiscriminator);
+        if (!string.IsNullOrEmpty(discriminatorWhere))
         {
-            whereConditions.Add($"{QuoteIdentifier(tphStrategy.DiscriminatorColumn)} = @Discriminator");
+            whereConditions.Add(discriminatorWhere);
         }
 
         builder.Where(string.Join(" AND ", whereConditions));
@@ -49,9 +70,10 @@ public class SqliteSqlGenerator : ISqlGenerator
             { "@id", id }
         };
 
-        if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrat && !string.IsNullOrEmpty(map.Discriminator))
+        // Dodaj parametry discriminatora
+        foreach (var param in discriminatorParams)
         {
-            parameters["@Discriminator"] = tphStrat.DiscriminatorValue;
+            parameters[param.Key] = param.Value;
         }
 
         var sqlQuery = new SqlQuery()
@@ -62,8 +84,9 @@ public class SqliteSqlGenerator : ISqlGenerator
         return sqlQuery;
     }
 
-    public SqlQuery GenerateSelectAll(EntityMap map)
+    public SqlQuery GenerateSelectAll(EntityMap map, IMetadataStore metadataStore)
     {
+        _metadataStore = metadataStore;
         var builder = new SqlQueryBuilder();
 
         var columns = GetColumnsForSelect(map);
@@ -76,12 +99,12 @@ public class SqliteSqlGenerator : ISqlGenerator
 
         BuildFromClauseWithInheritance(builder, map);
 
-        var parameters = new Dictionary<string, object>();
+        // ✅ Użyj wspólnej metody dla TPH discriminator filtering
+        var (discriminatorWhere, parameters) = BuildDiscriminatorFilter(map, metadataStore, null);
 
-        if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy && !string.IsNullOrEmpty(map.Discriminator))
+        if (!string.IsNullOrEmpty(discriminatorWhere))
         {
-            builder.Where($"{QuoteIdentifier(tphStrategy.DiscriminatorColumn)} = @Discriminator");
-            parameters["@Discriminator"] = tphStrategy.DiscriminatorValue;
+            builder.Where(discriminatorWhere);
         }
 
         var sqlQuery = new SqlQuery()
@@ -453,26 +476,22 @@ public class SqliteSqlGenerator : ISqlGenerator
         };
     }
 
-    public SqlQuery GenerateComplexSelect(EntityMap map, QueryModel queryModel)
+    public SqlQuery GenerateComplexSelect(EntityMap map, QueryModel queryModel, IMetadataStore metadataStore)
     {
+        _metadataStore = metadataStore;
+
         var builder = new SqlQueryBuilder();
         var parameters = new Dictionary<string, object>(queryModel.Parameters);
 
         bool hasJoins = queryModel.Joins.Any();
-        string? primaryAlias = hasJoins && string.IsNullOrEmpty(queryModel.PrimaryEntityAlias)
+        // ✅ Zawsze używaj aliasu (nawszen bez JOIN-ów)
+        string? primaryAlias = string.IsNullOrEmpty(queryModel.PrimaryEntityAlias)
             ? map.TableName.ToLowerInvariant()
             : queryModel.PrimaryEntityAlias;
 
         var selectColumns = BuildSelectColumns(map, queryModel, primaryAlias);
 
-        if (queryModel.Distinct)
-        {
-            builder.SelectDistinct(selectColumns);
-        }
-        else
-        {
-            builder.Select(selectColumns);
-        }
+        builder.Select(selectColumns);
 
         builder.FromWithAlias(QuoteIdentifier(map.TableName),
             string.IsNullOrEmpty(primaryAlias)
@@ -507,9 +526,35 @@ public class SqliteSqlGenerator : ISqlGenerator
             }
         }
 
+        // ✅ Dodaj discriminator filtering dla TPH (jeśli nie ma własnego WHERE)
+        var whereConditions = new List<string>();
+
         if (!string.IsNullOrEmpty(queryModel.WhereClause))
         {
-            builder.Where(queryModel.WhereClause);
+            // ✅ Dodaj aliasy do nazw kolumn w WHERE clause
+            var whereWithAlias = AddTableAliasToWhereClause(queryModel.WhereClause, primaryAlias, map);
+            whereConditions.Add(whereWithAlias);
+        }
+
+        // Dodaj filtrowanie po discriminator (ale tylko jeśli user nie podał własnego warunku na discriminator)
+        if (!queryModel.WhereClause?.Contains("Discriminator") ?? true)
+        {
+            var (discriminatorWhere, discriminatorParams) = BuildDiscriminatorFilter(map, metadataStore, primaryAlias);
+            if (!string.IsNullOrEmpty(discriminatorWhere))
+            {
+                whereConditions.Add(discriminatorWhere);
+
+                // Dodaj parametry discriminatora
+                foreach (var param in discriminatorParams)
+                {
+                    parameters[param.Key] = param.Value;
+                }
+            }
+        }
+
+        if (whereConditions.Any())
+        {
+            builder.Where(string.Join(" AND ", whereConditions));
         }
 
         if (queryModel.GroupByColumns.Any())
@@ -596,6 +641,52 @@ public class SqliteSqlGenerator : ISqlGenerator
                 current = current.BaseMap;
             }
         }
+        else if (map.InheritanceStrategy is TablePerTypeStrategy && map.IsAbstract && _metadataStore != null)
+        {
+            // ✅ Dla TPT + abstrakcyjna bazowa: dodaj kolumny z klasy bazowej i wszystkich klas pochodnych
+            var baseAlias = $"t{map.EntityType.Name}";
+
+            // Kolumny z klasy bazowej
+            foreach (var prop in map.ScalarProperties)
+            {
+                if (!string.IsNullOrEmpty(prop.ColumnName))
+                {
+                    columns.Add($"{QuoteIdentifier(baseAlias)}.{QuoteIdentifier(prop.ColumnName)}");
+                }
+            }
+
+            // Kolumny ze wszystkich klas pochodnych (rekurencyjnie)
+            AddColumnsFromDerivedTypes(columns, map);
+        }
+        else if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+        {
+            // ✅ Dla TPH: zwróć WSZYSTKIE kolumny z hierarchii!
+            var rootMap = map.RootMap;
+            var processedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Zbierz wszystkie mapy w hierarchii TPH
+            var allMaps = new List<EntityMap>();
+            CollectTPHHierarchy(rootMap, _metadataStore, allMaps);
+
+            // Dodaj kolumny ze wszystkich klas w hierarchii
+            foreach (var hierarchyMap in allMaps)
+            {
+                foreach (var prop in hierarchyMap.ScalarProperties)
+                {
+                    if (!string.IsNullOrEmpty(prop.ColumnName) && processedColumns.Add(prop.ColumnName))
+                    {
+                        columns.Add(QuoteIdentifier(prop.ColumnName));
+                    }
+                }
+
+                // Dodaj Discriminator
+                if (!string.IsNullOrEmpty(tphStrategy.DiscriminatorColumn) &&
+                    processedColumns.Add(tphStrategy.DiscriminatorColumn))
+                {
+                    columns.Add(QuoteIdentifier(tphStrategy.DiscriminatorColumn));
+                }
+            }
+        }
         else
         {
             foreach (var prop in map.ScalarProperties)
@@ -606,13 +697,31 @@ public class SqliteSqlGenerator : ISqlGenerator
                 }
             }
 
-            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy2)
             {
-                columns.Add(QuoteIdentifier(tphStrategy.DiscriminatorColumn));
+                columns.Add(QuoteIdentifier(tphStrategy2.DiscriminatorColumn));
             }
         }
 
         return columns;
+    }
+
+    private void CollectTPHHierarchy(EntityMap rootMap, IMetadataStore? metadataStore, List<EntityMap> result)
+    {
+        result.Add(rootMap);
+
+        if (metadataStore != null)
+        {
+            foreach (var map in metadataStore.GetAllMaps())
+            {
+                if (map != rootMap &&
+                    map.InheritanceStrategy is TablePerHierarchyStrategy &&
+                    map.RootMap == rootMap)
+                {
+                    result.Add(map);
+                }
+            }
+        }
     }
 
     private void BuildFromClauseWithInheritance(SqlQueryBuilder builder, EntityMap map)
@@ -622,6 +731,13 @@ public class SqliteSqlGenerator : ISqlGenerator
             var derivedAlias = $"t{map.EntityType.Name}";
             builder.From($"{QuoteIdentifier(map.TableName)} AS {QuoteIdentifier(derivedAlias)}");
             BuildTablePerTypeJoins(builder, map, derivedAlias);
+        }
+        else if (map.InheritanceStrategy is TablePerTypeStrategy && map.IsAbstract && _metadataStore != null)
+        {
+            // ✅ Dla TPT + abstrakcyjna klasa bazowa: dodaj LEFT JOIN do wszystkich klas pochodnych
+            var baseAlias = $"t{map.EntityType.Name}";
+            builder.From($"{QuoteIdentifier(map.TableName)} AS {QuoteIdentifier(baseAlias)}");
+            BuildLeftJoinsToDerivedTypes(builder, map, baseAlias);
         }
         else
         {
@@ -654,6 +770,75 @@ public class SqliteSqlGenerator : ISqlGenerator
         }
     }
 
+    /// <summary>
+    /// Dla TPT + abstrakcyjna klasa bazowa: dodaje LEFT JOIN do wszystkich konkretnych klas pochodnych.
+    /// To pozwala na wykrycie typu pochodnego w ObjectMaterializer.
+    /// </summary>
+    private void BuildLeftJoinsToDerivedTypes(SqlQueryBuilder builder, EntityMap baseMap, string baseAlias)
+    {
+        if (_metadataStore == null) return;
+
+        // Znajdź wszystkie bezpośrednie typy pochodne (tylko pierwszy poziom)
+        var directDerivedMaps = _metadataStore.GetAllMaps()
+            .Where(m => m.InheritanceStrategy is TablePerTypeStrategy &&
+                        m.BaseMap == baseMap)
+            .ToList();
+
+        foreach (var derivedMap in directDerivedMaps)
+        {
+            var derivedAlias = $"t{derivedMap.EntityType.Name}";
+            var onCondition = $"{QuoteIdentifier(baseAlias)}.{QuoteIdentifier(baseMap.KeyProperty.ColumnName!)} = {QuoteIdentifier(derivedAlias)}.{QuoteIdentifier(derivedMap.KeyProperty.ColumnName!)}";
+            
+            builder.LeftJoin(QuoteIdentifier(derivedMap.TableName), QuoteIdentifier(derivedAlias), onCondition);
+
+            // Rekurencyjnie dodaj JOIN-y dla kolejnych poziomów (jeśli klasa pochodna też jest abstrakcyjna)
+            if (derivedMap.IsAbstract)
+            {
+                BuildLeftJoinsToDerivedTypes(builder, derivedMap, derivedAlias);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Rekurencyjnie dodaje kolumny ze wszystkich klas pochodnych (dla TPT + abstrakcyjna bazowa).
+    /// </summary>
+    private void AddColumnsFromDerivedTypes(List<string> columns, EntityMap baseMap)
+    {
+        if (_metadataStore == null) return;
+
+        // Znajdź wszystkie bezpośrednie typy pochodne
+        var directDerivedMaps = _metadataStore.GetAllMaps()
+            .Where(m => m.InheritanceStrategy is TablePerTypeStrategy &&
+                        m.BaseMap == baseMap)
+            .ToList();
+
+        foreach (var derivedMap in directDerivedMaps)
+        {
+            var derivedAlias = $"t{derivedMap.EntityType.Name}";
+
+            // Dodaj kolumny specyficzne dla tego typu (nie dziedziczone z rodzica)
+            foreach (var prop in derivedMap.ScalarProperties)
+            {
+                if (!string.IsNullOrEmpty(prop.ColumnName))
+                {
+                    var isInheritedFromParent = baseMap.ScalarProperties.Any(bp =>
+                        string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                    if (!isInheritedFromParent)
+                    {
+                        columns.Add($"{QuoteIdentifier(derivedAlias)}.{QuoteIdentifier(prop.ColumnName)}");
+                    }
+                }
+            }
+
+            // Rekurencyjnie dla dalszych poziomów
+            if (derivedMap.IsAbstract)
+            {
+                AddColumnsFromDerivedTypes(columns, derivedMap);
+            }
+        }
+    }
+
     private IEnumerable<string> BuildSelectColumns(EntityMap map, QueryModel queryModel, string? tableAlias)
     {
         if (queryModel.Aggregates.Any())
@@ -674,48 +859,107 @@ public class SqliteSqlGenerator : ISqlGenerator
 
             return aggregateColumns;
         }
-        else if (queryModel.SelectAllColumns || !queryModel.SelectColumns.Any())
+        else
         {
+            // Zawsze zwracaj wszystkie kolumny (SELECT ALL)
             var columns = new List<string>();
 
-            // Primary entity columns
-            foreach (var prop in map.ScalarProperties)
+            // ✅ Dla TPH: użyj tej samej logiki co GetColumnsForSelect!
+            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
             {
-                if (!string.IsNullOrEmpty(prop.ColumnName))
+                var rootMap = map.RootMap;
+                var processedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // Zbierz wszystkie mapy w hierarchii TPH
+                var allMaps = new List<EntityMap>();
+                CollectTPHHierarchy(rootMap, _metadataStore, allMaps);
+
+                // Dodaj kolumny ze wszystkich klas w hierarchii
+                foreach (var hierarchyMap in allMaps)
                 {
-                    if (string.IsNullOrEmpty(tableAlias))
+                    foreach (var prop in hierarchyMap.ScalarProperties)
                     {
-                        columns.Add(QuoteIdentifier(prop.ColumnName));
+                        if (!string.IsNullOrEmpty(prop.ColumnName) && processedColumns.Add(prop.ColumnName))
+                        {
+                            if (string.IsNullOrEmpty(tableAlias))
+                            {
+                                columns.Add(QuoteIdentifier(prop.ColumnName));
+                            }
+                            else if (queryModel.IncludeJoins.Any())
+                            {
+                                var columnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)} AS {QuoteIdentifier(tableAlias + "_" + prop.ColumnName)}";
+                                columns.Add(columnWithAlias);
+                            }
+                            else
+                            {
+                                var column = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)}";
+                                columns.Add(column);
+                            }
+                        }
                     }
-                    else if (queryModel.IncludeJoins.Any())
+
+                    // Discriminator
+                    if (!string.IsNullOrEmpty(tphStrategy.DiscriminatorColumn) &&
+                        processedColumns.Add(tphStrategy.DiscriminatorColumn))
                     {
-                        // Aliasuj kolumny aby uniknąć konfliktów nazw w JOIN
-                        var columnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)} AS {QuoteIdentifier(tableAlias + "_" + prop.ColumnName)}";
-                        columns.Add(columnWithAlias);
-                    }
-                    else
-                    {
-                        var column = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)}";
-                        columns.Add(column);
+                        if (string.IsNullOrEmpty(tableAlias))
+                        {
+                            columns.Add(QuoteIdentifier(tphStrategy.DiscriminatorColumn));
+                        }
+                        else if (queryModel.IncludeJoins.Any())
+                        {
+                            var discColumnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)} AS {QuoteIdentifier(tableAlias + "_" + tphStrategy.DiscriminatorColumn)}";
+                            columns.Add(discColumnWithAlias);
+                        }
+                        else
+                        {
+                            var discColumn = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)}";
+                            columns.Add(discColumn);
+                        }
                     }
                 }
             }
-
-            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+            else
             {
-                if (string.IsNullOrEmpty(tableAlias))
+                // Primary entity columns (non-TPH)
+                foreach (var prop in map.ScalarProperties)
                 {
-                    columns.Add(QuoteIdentifier(tphStrategy.DiscriminatorColumn));
+                    if (!string.IsNullOrEmpty(prop.ColumnName))
+                    {
+                        if (string.IsNullOrEmpty(tableAlias))
+                        {
+                            columns.Add(QuoteIdentifier(prop.ColumnName));
+                        }
+                        else if (queryModel.IncludeJoins.Any())
+                        {
+                            // Aliasuj kolumny aby uniknąć konfliktów nazw w JOIN
+                            var columnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)} AS {QuoteIdentifier(tableAlias + "_" + prop.ColumnName)}";
+                            columns.Add(columnWithAlias);
+                        }
+                        else
+                        {
+                            var column = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(prop.ColumnName)}";
+                            columns.Add(column);
+                        }
+                    }
                 }
-                else if (queryModel.IncludeJoins.Any())
+
+                if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy2)
                 {
-                    var discColumnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)} AS {QuoteIdentifier(tableAlias + "_" + tphStrategy.DiscriminatorColumn)}";
-                    columns.Add(discColumnWithAlias);
-                }
-                else
-                {
-                    var discColumn = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)}";
-                    columns.Add(discColumn);
+                    if (string.IsNullOrEmpty(tableAlias))
+                    {
+                        columns.Add(QuoteIdentifier(tphStrategy2.DiscriminatorColumn));
+                    }
+                    else if (queryModel.IncludeJoins.Any())
+                    {
+                        var discColumnWithAlias = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy2.DiscriminatorColumn)} AS {QuoteIdentifier(tableAlias + "_" + tphStrategy2.DiscriminatorColumn)}";
+                        columns.Add(discColumnWithAlias);
+                    }
+                    else
+                    {
+                        var discColumn = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy2.DiscriminatorColumn)}";
+                        columns.Add(discColumn);
+                    }
                 }
             }
 
@@ -743,12 +987,6 @@ public class SqliteSqlGenerator : ISqlGenerator
             }
 
             return columns;
-        }
-        else
-        {
-            return queryModel.SelectColumns
-                .Where(p => !string.IsNullOrEmpty(p.ColumnName))
-                .Select(p => BuildColumnReference(p, tableAlias));
         }
     }
 
@@ -816,6 +1054,137 @@ public class SqliteSqlGenerator : ISqlGenerator
         return result;
     }
 
+    /// <summary>
+    /// Buduje warunek WHERE dla filtrowania po discriminator (TPH) - polimorficzny.
+    /// Zwraca null jeśli nie trzeba filtrować (klasa bazowa bez discriminator).
+    /// </summary>
+    private (string? whereClause, Dictionary<string, object> parameters) BuildDiscriminatorFilter(
+        EntityMap map,
+        IMetadataStore? metadataStore,
+        string? tableAlias = null)
+    {
+        var parameters = new Dictionary<string, object>();
+
+        if (map.InheritanceStrategy is not TablePerHierarchyStrategy tphStrategy)
+        {
+            return (null, parameters); // Nie TPH - brak filtrowania
+        }
+
+        if (string.IsNullOrEmpty(map.Discriminator))
+        {
+            return (null, parameters); // Klasa bazowa - zwróć wszystko z hierarchii
+        }
+
+        // Konkretna klasa - znajdź wszystkie podklasy (polimorficzny)
+        var allDiscriminators = new List<string> { map.Discriminator };
+
+        if (metadataStore != null)
+        {
+            // Znajdź wszystkie typy dziedziczące
+            foreach (var otherMap in metadataStore.GetAllMaps())
+            {
+                if (otherMap.EntityType != map.EntityType &&
+                    map.EntityType.IsAssignableFrom(otherMap.EntityType) &&
+                    !string.IsNullOrEmpty(otherMap.Discriminator))
+                {
+                    allDiscriminators.Add(otherMap.Discriminator);
+                }
+            }
+        }
+
+        // Buduj WHERE z aliasem
+        var columnRef = string.IsNullOrEmpty(tableAlias)
+            ? QuoteIdentifier(tphStrategy.DiscriminatorColumn)
+            : $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)}";
+
+        if (allDiscriminators.Count == 1)
+        {
+            // Tylko jedna klasa - prosty warunek
+            parameters["@Discriminator"] = allDiscriminators[0];
+            return ($"{columnRef} = @Discriminator", parameters);
+        }
+        else
+        {
+            // Wiele klas - użyj IN (...)
+            var paramNames = new List<string>();
+            for (int i = 0; i < allDiscriminators.Count; i++)
+            {
+                var paramName = $"@Discriminator{i}";
+                paramNames.Add(paramName);
+                parameters[paramName] = allDiscriminators[i];
+            }
+
+            return ($"{columnRef} IN ({string.Join(", ", paramNames)})", parameters);
+        }
+    }
+
+    /// <summary>
+    /// Dodaje alias tabeli do wszystkich nazw kolumn w klauzuli WHERE.
+    /// Zamienia "column_name" na "alias"."column_name".
+    /// </summary>
+    private string AddTableAliasToWhereClause(string whereClause, string? tableAlias, EntityMap map)
+    {
+        if (string.IsNullOrEmpty(tableAlias) || string.IsNullOrEmpty(whereClause))
+            return whereClause;
+
+        // Zbierz wszystkie nazwy kolumn z mapy
+        var columnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Dla TPH: zbierz kolumny ze wszystkich klas w hierarchii
+        if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+        {
+            var allMaps = new List<EntityMap>();
+            CollectTPHHierarchy(map.RootMap, _metadataStore, allMaps);
+
+            foreach (var hierarchyMap in allMaps)
+            {
+                foreach (var prop in hierarchyMap.ScalarProperties)
+                {
+                    if (!string.IsNullOrEmpty(prop.ColumnName))
+                    {
+                        columnNames.Add(prop.ColumnName);
+                    }
+                }
+            }
+
+            if (!string.IsNullOrEmpty(tphStrategy.DiscriminatorColumn))
+            {
+                columnNames.Add(tphStrategy.DiscriminatorColumn);
+            }
+        }
+        else
+        {
+            // Dla innych strategii: tylko kolumny z bieżącej mapy
+            foreach (var prop in map.ScalarProperties)
+            {
+                if (!string.IsNullOrEmpty(prop.ColumnName))
+                {
+                    columnNames.Add(prop.ColumnName);
+                }
+            }
+        }
+
+        var result = whereClause;
+
+        // Dla każdej kolumny, zamień "column" na "alias"."column"
+        // ale tylko jeśli nie jest już poprzedzona aliasem
+        foreach (var columnName in columnNames)
+        {
+            // Pattern: "column_name" które NIE jest poprzedzone przez "." (czyli nie jest już aliasowane)
+            // Używamy negative lookbehind: (?<!\.)
+            var pattern = $@"(?<!\.)""({System.Text.RegularExpressions.Regex.Escape(columnName)})""";
+            var replacement = $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(columnName)}";
+
+            result = System.Text.RegularExpressions.Regex.Replace(
+                result,
+                pattern,
+                replacement,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        }
+
+        return result;
+    }
+
     private static IEnumerable<string> FilterNullStrings(IEnumerable<string?>? source)
     {
         if (source == null)
@@ -829,5 +1198,207 @@ public class SqliteSqlGenerator : ISqlGenerator
             return false;
         Type actualType = entity.GetType();
         return actualType == map.EntityType;
+    }
+
+    // ==================== NOWA SEKCJA: INHERITANCE STRATEGY ANALYSIS ====================
+
+    /// <summary>
+    /// Analiza strategii dziedziczenia - zwraca kontekst z wszystkimi informacjami potrzebnymi do budowania SQL.
+    /// </summary>
+    private InheritanceContext AnalyzeInheritanceStrategy(EntityMap map, string? requestedAlias)
+    {
+        var context = new InheritanceContext
+        {
+            PrimaryAlias = requestedAlias ?? map.TableName.ToLowerInvariant()
+        };
+
+        // Określ typ strategii
+        if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+        {
+            context.StrategyType = InheritanceStrategyType.TablePerHierarchy;
+            context.BaseTable = map.RootMap.TableName;
+            
+            // TPH: zbierz wszystkie mapy w hierarchii
+            CollectTPHHierarchy(map.RootMap, _metadataStore, context.HierarchyMaps);
+            
+            // TPH: zbuduj WHERE dla discriminatora (jeśli konkretna klasa)
+            if (!string.IsNullOrEmpty(map.Discriminator))
+            {
+                var (whereClause, parameters) = BuildDiscriminatorFilterInternal(map, _metadataStore, context.PrimaryAlias);
+                context.DiscriminatorWhereClause = whereClause;
+                context.DiscriminatorParameters = parameters;
+            }
+        }
+        else if (map.InheritanceStrategy is TablePerTypeStrategy)
+        {
+            context.StrategyType = InheritanceStrategyType.TablePerType;
+            
+            if (map.BaseMap != null)
+            {
+                // TPT - konkretna klasa pochodna
+                context.BaseTable = map.TableName;
+                context.PrimaryAlias = $"t{map.EntityType.Name}";
+                context.TableAliases[map.TableName] = context.PrimaryAlias;
+                
+                // Zbuduj INNER JOIN do wszystkich rodziców (w górę hierarchii)
+                BuildTPTParentJoins(map, context);
+            }
+            else if (map.IsAbstract)
+            {
+                // TPT - abstrakcyjna klasa bazowa
+                context.BaseTable = map.TableName;
+                context.PrimaryAlias = $"t{map.EntityType.Name}";
+                context.TableAliases[map.TableName] = context.PrimaryAlias;
+                
+                // Zbuduj LEFT JOIN do wszystkich dzieci (w dół hierarchii)
+                BuildTPTChildJoins(map, context);
+            }
+            else
+            {
+                // TPT - konkretna klasa bez dziedziczenia
+                context.BaseTable = map.TableName;
+                context.TableAliases[map.TableName] = context.PrimaryAlias;
+            }
+        }
+        else if (map.InheritanceStrategy is TablePerConcreteClassStrategy)
+        {
+            context.StrategyType = InheritanceStrategyType.TablePerConcrete;
+            context.BaseTable = map.TableName;
+            // TPC: UNION ALL będzie obsługiwane osobno
+        }
+        else
+        {
+            // Brak dziedziczenia
+            context.StrategyType = InheritanceStrategyType.None;
+            context.BaseTable = map.TableName;
+        }
+
+        return context;
+    }
+
+    /// <summary>
+    /// Buduje INNER JOIN do tabel rodzica (TPT - w górę hierarchii).
+    /// </summary>
+    private void BuildTPTParentJoins(EntityMap map, InheritanceContext context)
+    {
+        var current = map.BaseMap;
+        var childAlias = context.PrimaryAlias;
+
+        while (current != null)
+        {
+            var parentAlias = $"t{current.EntityType.Name}";
+            context.TableAliases[current.TableName] = parentAlias;
+
+            var condition = $"{QuoteIdentifier(childAlias)}.{QuoteIdentifier(map.KeyProperty.ColumnName!)} = {QuoteIdentifier(parentAlias)}.{QuoteIdentifier(current.KeyProperty.ColumnName!)}";
+
+            context.ParentJoins.Add(new InheritanceJoinClause
+            {
+                Table = current.TableName,
+                Alias = parentAlias,
+                Condition = condition,
+                JoinType = JoinType.Inner
+            });
+
+            childAlias = parentAlias;
+            current = current.BaseMap;
+        }
+    }
+
+    /// <summary>
+    /// Buduje LEFT JOIN do tabel dzieci (TPT - w dół hierarchii, rekurencyjnie).
+    /// </summary>
+    private void BuildTPTChildJoins(EntityMap baseMap, InheritanceContext context)
+    {
+        if (_metadataStore == null) return;
+
+        // Znajdź bezpośrednie typy pochodne
+        var directDerivedMaps = _metadataStore.GetAllMaps()
+            .Where(m => m.InheritanceStrategy is TablePerTypeStrategy && m.BaseMap == baseMap)
+            .ToList();
+
+        foreach (var derivedMap in directDerivedMaps)
+        {
+            var parentAlias = context.TableAliases.ContainsKey(baseMap.TableName) 
+                ? context.TableAliases[baseMap.TableName] 
+                : $"t{baseMap.EntityType.Name}";
+                
+            var childAlias = $"t{derivedMap.EntityType.Name}";
+            context.TableAliases[derivedMap.TableName] = childAlias;
+
+            var condition = $"{QuoteIdentifier(parentAlias)}.{QuoteIdentifier(baseMap.KeyProperty.ColumnName!)} = {QuoteIdentifier(childAlias)}.{QuoteIdentifier(derivedMap.KeyProperty.ColumnName!)}";
+
+            context.ChildJoins.Add(new InheritanceJoinClause
+            {
+                Table = derivedMap.TableName,
+                Alias = childAlias,
+                Condition = condition,
+                JoinType = JoinType.Left
+            });
+
+            // Rekurencyjnie dla dalszych poziomów
+            if (derivedMap.IsAbstract)
+            {
+                BuildTPTChildJoins(derivedMap, context);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Wersja BuildDiscriminatorFilter która nie modyfikuje context.Parameters (używana wewnętrznie).
+    /// </summary>
+    private (string? whereClause, Dictionary<string, object> parameters) BuildDiscriminatorFilterInternal(
+        EntityMap map,
+        IMetadataStore? metadataStore,
+        string? tableAlias = null)
+    {
+        var parameters = new Dictionary<string, object>();
+
+        if (map.InheritanceStrategy is not TablePerHierarchyStrategy tphStrategy)
+        {
+            return (null, parameters);
+        }
+
+        if (string.IsNullOrEmpty(map.Discriminator))
+        {
+            return (null, parameters); // Klasa bazowa - zwróć wszystko
+        }
+
+        // Konkretna klasa - znajdź wszystkie podklasy (polimorficzny)
+        var allDiscriminators = new List<string> { map.Discriminator };
+
+        if (metadataStore != null)
+        {
+            foreach (var otherMap in metadataStore.GetAllMaps())
+            {
+                if (otherMap.EntityType != map.EntityType &&
+                    map.EntityType.IsAssignableFrom(otherMap.EntityType) &&
+                    !string.IsNullOrEmpty(otherMap.Discriminator))
+                {
+                    allDiscriminators.Add(otherMap.Discriminator);
+                }
+            }
+        }
+
+        var columnRef = string.IsNullOrEmpty(tableAlias)
+            ? QuoteIdentifier(tphStrategy.DiscriminatorColumn)
+            : $"{QuoteIdentifier(tableAlias)}.{QuoteIdentifier(tphStrategy.DiscriminatorColumn)}";
+
+        if (allDiscriminators.Count == 1)
+        {
+            parameters["@Discriminator"] = allDiscriminators[0];
+            return ($"{columnRef} = @Discriminator", parameters);
+        }
+        else
+        {
+            var paramNames = new List<string>();
+            for (int i = 0; i < allDiscriminators.Count; i++)
+            {
+                var paramName = $"@Discriminator{i}";
+                paramNames.Add(paramName);
+                parameters[paramName] = allDiscriminators[i];
+            }
+
+            return ($"{columnRef} IN ({string.Join(", ", paramNames)})", parameters);
+        }
     }
 }

@@ -12,6 +12,9 @@ class Program
 {
     static void Main(string[] args)
     {
+        //LiveDemo demo = new LiveDemo();
+        //demo.Main();
+        //return;
 
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         Console.WriteLine("|============================================================|");

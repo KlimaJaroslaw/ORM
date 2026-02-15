@@ -16,10 +16,12 @@ internal class ExpressionToSqlConverter
     private readonly EntityMap _entityMap;
     private readonly Dictionary<string, object> _parameters = new();
     private int _parameterIndex = 0;
+    private readonly string? _tableAlias;
 
-    public ExpressionToSqlConverter(EntityMap entityMap)
+    public ExpressionToSqlConverter(EntityMap entityMap, string? tableAlias = null)
     {
         _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        _tableAlias = tableAlias;
     }
 
     public (string WhereClause, Dictionary<string, object> Parameters) Translate<T>(Expression<Func<T, bool>> predicate)
@@ -78,7 +80,33 @@ internal class ExpressionToSqlConverter
 
     private string VisitMember(MemberExpression node)
     {
-        // x.PropertyName → "ColumnName"
+        // CASE 1: Sprawdź czy to CLOSURE (zmienna lokalna przechwycona przez lambda)
+        if (node.Expression is ConstantExpression constantExpr)
+        {
+            // To jest dostęp do zmiennej lokalnej (closure field)
+            // Przykład: teacherId w "c => c.TeacherId == teacherId"
+            
+            // Ewaluuj wartość (wyciągnij wartość z closure class)
+            var container = constantExpr.Value;
+            var member = node.Member;
+            
+            object? value = null;
+            if (member is System.Reflection.FieldInfo field)
+            {
+                value = field.GetValue(container);
+            }
+            else if (member is System.Reflection.PropertyInfo property)
+            {
+                value = property.GetValue(container);
+            }
+            
+            // Dodaj jako parametr SQL
+            var paramName = $"@p{_parameterIndex++}";
+            _parameters[paramName] = value ?? DBNull.Value;
+            return paramName;
+        }
+        
+        // CASE 2: To jest właściwość encji (np. c.TeacherId)
         var propertyName = node.Member.Name;
 
         // Znajdź PropertyMap dla tej property
@@ -96,6 +124,12 @@ internal class ExpressionToSqlConverter
         if (propertyMap == null)
         {
             throw new InvalidOperationException($"Property '{propertyName}' not found in entity map for {_entityMap.EntityType.Name}");
+        }
+
+        // ✅ DODAJ ALIAS TABELI (jeśli istnieje)
+        if (!string.IsNullOrEmpty(_tableAlias))
+        {
+            return $"\"{_tableAlias}\".\"{propertyMap.ColumnName}\"";
         }
 
         return $"\"{propertyMap.ColumnName}\"";

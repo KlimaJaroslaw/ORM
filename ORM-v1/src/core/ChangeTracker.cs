@@ -54,12 +54,16 @@ public class ChangeTracker
     /// <summary>
     /// Pobiera śledzoną encję po kluczu głównym lub null jeśli nie znaleziono.
     /// Używane dla Identity Map pattern w Include().
+    /// ✅ POPRAWKA TPC: Sprawdza DOKŁADNY typ encji (nie używa IsAssignableFrom).
+    /// Dla TPC Student (ID=1) i StudentPart (ID=1) to RÓŻNE encje!
     /// </summary>
     public object? FindTracked(Type entityType, object keyValue)
     {
         foreach (var entry in _entries.Values)
         {
-            if (entry.Entity.GetType() == entityType)
+            // ✅ ZMIANA: Porównaj DOKŁADNY typ encji
+            // Dla TPC: Student != StudentPart (nawet jeśli mają ten sam ID!)
+            if (entry.Entity.GetType() == entityType)  // Porównaj dokładny typ, NIE IsAssignableFrom
             {
                 // Porównaj klucz główny - użyjemy prostego reflection
                 var keyProp = entityType.GetProperties()
