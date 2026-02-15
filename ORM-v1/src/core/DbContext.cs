@@ -75,16 +75,11 @@ public class DbContext : IDisposable
 
     public T? Find<T>(object id) where T : class
     {
-        // First check the change tracker
-        foreach (var entry in ChangeTracker.Entries)
+        // ✅ POPRAWKA: Użyj FindTracked zamiast ręcznego foreach
+        var trackedEntity = ChangeTracker.FindTracked<T>(id);
+        if (trackedEntity != null)
         {
-            if (entry.Entity is T entity && entry.State != EntityState.Deleted)
-            {
-                var map = _configuration.MetadataStore.GetMap<T>();
-                var keyVal = map.KeyProperty.PropertyInfo.GetValue(entity);
-                if (keyVal != null && keyVal.Equals(id))
-                    return entity;
-            }
+            return trackedEntity;
         }
 
         // Generate SQL query using the new interface
@@ -466,59 +461,19 @@ public class DatabaseFacade
                 }
             }
 
-                if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
-                {
-                    if (processedColumns.Add(tphStrategy.DiscriminatorColumn))
-                    {
-                        columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
-                    }
-                }
-
-                return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
-            }
-            else if (map.InheritanceStrategy is TablePerTypeStrategy)
+            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
             {
-                if (map.BaseMap == null)
+                if (processedColumns.Add(tphStrategy.DiscriminatorColumn))
                 {
-                    foreach (var prop in map.ScalarProperties)
-                    {
-                        var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
-
-                        if (prop == map.KeyProperty)
-                        {
-                            columnDef += " PRIMARY KEY";
-                            if (map.HasAutoIncrementKey)
-                            {
-                                columnDef += " AUTOINCREMENT";
-                            }
-                        }
-
-                        columns.Add(columnDef);
-                    }
+                    columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
                 }
-                else
-                {
-                    foreach (var prop in map.ScalarProperties)
-                    {
-                        var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp =>
-                            string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
-
-                        if (!isInheritedColumn)
-                        {
-                            columns.Add($"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}");
-                        }
-                        else if (string.Equals(prop.ColumnName, map.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            columns.Add($"\"{prop.ColumnName}\" INTEGER PRIMARY KEY");
-                        }
-                    }
-
-                    columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
-                }
-
-                return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
             }
-            else
+
+            return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
+        }
+        else if (map.InheritanceStrategy is TablePerTypeStrategy)
+        {
+            if (map.BaseMap == null)
             {
                 foreach (var prop in map.ScalarProperties)
                 {
@@ -535,45 +490,85 @@ public class DatabaseFacade
 
                     columns.Add(columnDef);
                 }
-
-                if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
-                {
-                    columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
-                }
-
-                return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
             }
-        }
-
-        private List<EntityMap> GetAllMapsInTPHHierarchy(EntityMap rootMap, IMetadataStore metadataStore)
-        {
-            var result = new List<EntityMap> { rootMap };
-
-            foreach (var map in metadataStore.GetAllMaps())
+            else
             {
-                if (map != rootMap &&
-                    map.InheritanceStrategy is TablePerHierarchyStrategy &&
-                    map.RootMap == rootMap)
+                foreach (var prop in map.ScalarProperties)
                 {
-                    result.Add(map);
+                    var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp =>
+                        string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+                    if (!isInheritedColumn)
+                    {
+                        columns.Add($"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}");
+                    }
+                    else if (string.Equals(prop.ColumnName, map.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        columns.Add($"\"{prop.ColumnName}\" INTEGER PRIMARY KEY");
+                    }
                 }
+
+                columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
             }
 
-            return result;
+            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
         }
-
-        private string GetSqliteType(Type type)
+        else
         {
-            type = Nullable.GetUnderlyingType(type) ?? type;
+            foreach (var prop in map.ScalarProperties)
+            {
+                var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
 
-            if (type == typeof(int) || type == typeof(long) || type == typeof(bool) || type.IsEnum)
-                return "INTEGER";
-            if (type == typeof(decimal) || type == typeof(double) || type == typeof(float))
-                return "REAL";
-            if (type == typeof(DateTime))
-                return "TEXT";
+                if (prop == map.KeyProperty)
+                {
+                    columnDef += " PRIMARY KEY";
+                    if (map.HasAutoIncrementKey)
+                    {
+                        columnDef += " AUTOINCREMENT";
+                    }
+                }
 
-            return "TEXT";
+                columns.Add(columnDef);
+            }
+
+            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+            {
+                columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
+            }
+
+            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
         }
     }
+
+    private List<EntityMap> GetAllMapsInTPHHierarchy(EntityMap rootMap, IMetadataStore metadataStore)
+    {
+        var result = new List<EntityMap> { rootMap };
+
+        foreach (var map in metadataStore.GetAllMaps())
+        {
+            if (map != rootMap &&
+                map.InheritanceStrategy is TablePerHierarchyStrategy &&
+                map.RootMap == rootMap)
+            {
+                result.Add(map);
+            }
+        }
+
+        return result;
+    }
+
+    private string GetSqliteType(Type type)
+    {
+        type = Nullable.GetUnderlyingType(type) ?? type;
+
+        if (type == typeof(int) || type == typeof(long) || type == typeof(bool) || type.IsEnum)
+            return "INTEGER";
+        if (type == typeof(decimal) || type == typeof(double) || type == typeof(float))
+            return "REAL";
+        if (type == typeof(DateTime))
+            return "TEXT";
+
+        return "TEXT";
+    }
+}
 
