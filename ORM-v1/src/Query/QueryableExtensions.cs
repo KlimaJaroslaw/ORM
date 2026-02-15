@@ -254,8 +254,19 @@ public static class QueryableExtensions
 
         while (reader.Read())
         {
-            var entity = (TEntity)materializer.Materialize(reader, ordinals);
-            context.ChangeTracker.Track(entity, EntityState.Unchanged);
+            var tempEntity = (TEntity)materializer.Materialize(reader, ordinals);
+            var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(tempEntity)!;
+
+            // ✅ Sprawdź Identity Map
+            var trackedEntity = context.ChangeTracker.FindTracked(typeof(TEntity), keyValue) as TEntity;
+            
+            var entity = trackedEntity ?? tempEntity;
+            
+            if (trackedEntity == null)
+            {
+                context.ChangeTracker.Track(entity, EntityState.Unchanged);
+            }
+            
             entities.Add(entity);
         }
 
@@ -342,22 +353,13 @@ public static class QueryableExtensions
 
     /// <summary>
     /// Pobiera wszystkie encje z context używając SetInternal (bez includes).
+    /// SetInternal ma już zaimplementowany Identity Map.
     /// </summary>
     private static List<TEntity> GetAllEntitiesFromContext<TEntity>(DbContext context)
         where TEntity : class
     {
-        var setInternalMethod = typeof(DbContext).GetMethod("SetInternal",
-            BindingFlags.NonPublic | BindingFlags.Instance)
-            ?.MakeGenericMethod(typeof(TEntity));
-
-        if (setInternalMethod == null)
-            throw new InvalidOperationException("Cannot access SetInternal method");
-
-        var allEntitiesEnumerable = setInternalMethod.Invoke(context, null) as IEnumerable<TEntity>;
-        if (allEntitiesEnumerable == null)
-            throw new InvalidOperationException("Failed to retrieve entities");
-
-        return allEntitiesEnumerable.ToList();
+        // ✅ SetInternal już obsługuje Identity Map poprawnie
+        return context.SetInternal<TEntity>().ToList();
     }
 
     /// <summary>
@@ -687,12 +689,22 @@ public static class QueryableExtensions
                     if (!alreadyExists)
                     {
                         collection.Add(relatedEntity);
+                        
+                        // ✅ RELATIONSHIP FIXUP: Ustaw odwrotną stronę relacji (inverse navigation property + FK)
+                        // Przykład: Student.Courses → Course.Student i Course.StudentId
+                        var parentEntityMap = metadataStore.GetMap(parentEntity.GetType());
+                        FixupInverseRelationship(relatedEntity, parentEntity, relatedMap, parentEntityMap);
                     }
                 }
                 else
                 {
                     // MANY-TO-ONE lub ONE-TO-ONE: przypisz bezpośrednio do rodzica
                     navProp.PropertyInfo.SetValue(parentEntity, relatedEntity);
+                    
+                    // ✅ RELATIONSHIP FIXUP: Ustaw odwrotną stronę relacji jeśli istnieje
+                    // Przykład: Course.Student → Student.Courses (jeśli jeszcze nie dodane)
+                    var parentEntityMap = metadataStore.GetMap(parentEntity.GetType());
+                    FixupInverseCollectionRelationship(parentEntity, relatedEntity, parentEntityMap, relatedMap);
                 }
 
                 // Zapisz zmaterializowaną encję do currentRowEntities dla dalszych ThenInclude
@@ -732,6 +744,13 @@ public static class QueryableExtensions
     /// </summary>
     private static int[] GetOrdinals(IDataReader reader, EntityMap map, string? tableAlias)
     {
+        Console.WriteLine($"[DEBUG GetOrdinals] map={map.EntityType.Name}, tableAlias={tableAlias}, FieldCount={reader.FieldCount}");
+        Console.WriteLine($"[DEBUG GetOrdinals] Reader columns:");
+        for (int j = 0; j < reader.FieldCount; j++)
+        {
+            Console.WriteLine($"  [{j}] '{reader.GetName(j)}'");
+        }
+        
         var ordinals = new int[map.ScalarProperties.Count];
 
         for (int i = 0; i < map.ScalarProperties.Count; i++)
@@ -745,6 +764,8 @@ public static class QueryableExtensions
 
             // ✅ Dla TPT: znajdź z której tabeli pochodzi ta kolumna
             string searchName;
+            string fallbackSearchName = columnName;
+            
             if (!string.IsNullOrEmpty(tableAlias))
             {
                 // Sprawdź czy to TPT i czy kolumna pochodzi z klasy bazowej
@@ -775,6 +796,9 @@ public static class QueryableExtensions
                 searchName = columnName;
             }
 
+            Console.WriteLine($"[DEBUG GetOrdinals] Property '{prop.PropertyInfo.Name}' (column '{columnName}') → searching for '{searchName}'");
+
+            // First try: search for aliased column name
             for (int j = 0; j < reader.FieldCount; j++)
             {
                 var fieldName = reader.GetName(j);
@@ -782,8 +806,32 @@ public static class QueryableExtensions
                 if (string.Equals(fieldName, searchName, StringComparison.OrdinalIgnoreCase))
                 {
                     ordinals[i] = j;
+                    Console.WriteLine($"  ✅ FOUND at ordinal {j}");
                     break;
                 }
+            }
+            
+            // ✅ FALLBACK: If aliased column not found and we have a table alias, 
+            // try searching for the unaliased column name (for queries without column aliases)
+            if (ordinals[i] == -1 && !string.IsNullOrEmpty(tableAlias))
+            {
+                Console.WriteLine($"[DEBUG GetOrdinals]   Aliased column not found, trying fallback: '{fallbackSearchName}'");
+                for (int j = 0; j < reader.FieldCount; j++)
+                {
+                    var fieldName = reader.GetName(j);
+
+                    if (string.Equals(fieldName, fallbackSearchName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ordinals[i] = j;
+                        Console.WriteLine($"  ✅ FOUND (fallback) at ordinal {j}");
+                        break;
+                    }
+                }
+            }
+            
+            if (ordinals[i] == -1)
+            {
+                Console.WriteLine($"  ❌ NOT FOUND!");
             }
         }
 
@@ -902,5 +950,78 @@ public static class QueryableExtensions
         }
 
         return context;
+    }
+
+    /// <summary>
+    /// Fixup dla ONE-TO-MANY: ustaw odwrotną stronę relacji (inverse navigation + FK).
+    /// Przykład: Po dodaniu Course do Student.Courses, ustaw Course.Student = student i Course.StudentId = student.Key
+    /// </summary>
+    private static void FixupInverseRelationship(object childEntity, object parentEntity, EntityMap childMap, EntityMap parentMap)
+    {
+        // Znajdź inverse navigation property w child (która wskazuje na parent)
+        var inverseNavProp = childMap.NavigationProperties
+            .FirstOrDefault(np => np.TargetType == parentMap.EntityType && !np.IsCollection);
+
+        if (inverseNavProp != null)
+        {
+            // Ustaw inverse navigation property (np. Course.Student = student)
+            inverseNavProp.PropertyInfo.SetValue(childEntity, parentEntity);
+            
+            // Ustaw FK property jeśli istnieje (np. Course.StudentId = student.Key)
+            if (!string.IsNullOrEmpty(inverseNavProp.ForeignKeyName))
+            {
+                var fkProp = childMap.ScalarProperties
+                    .FirstOrDefault(p => p.PropertyInfo.Name == inverseNavProp.ForeignKeyName);
+                
+                if (fkProp != null)
+                {
+                    var parentKeyValue = parentMap.KeyProperty.PropertyInfo.GetValue(parentEntity);
+                    fkProp.PropertyInfo.SetValue(childEntity, parentKeyValue);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fixup dla MANY-TO-ONE: jeśli parent ma kolekcję inverse, dodaj child do niej.
+    /// Przykład: Po ustawieniu Course.Student = student, dodaj course do Student.Courses (jeśli jeszcze nie ma)
+    /// </summary>
+    private static void FixupInverseCollectionRelationship(object parentEntity, object childEntity, EntityMap parentMap, EntityMap childMap)
+    {
+        // Znajdź inverse collection navigation property w parent (która wskazuje na child collection)
+        var inverseCollectionNavProp = parentMap.NavigationProperties
+            .FirstOrDefault(np => np.TargetType == childMap.EntityType && np.IsCollection);
+
+        if (inverseCollectionNavProp != null)
+        {
+            var collection = inverseCollectionNavProp.PropertyInfo.GetValue(parentEntity) as IList;
+            
+            if (collection == null)
+            {
+                // Utwórz kolekcję jeśli nie istnieje
+                var listType = typeof(List<>).MakeGenericType(childMap.EntityType);
+                collection = (IList)Activator.CreateInstance(listType)!;
+                inverseCollectionNavProp.PropertyInfo.SetValue(parentEntity, collection);
+            }
+            
+            // Dodaj do kolekcji jeśli jeszcze nie ma (unikaj duplikatów)
+            var childKeyValue = childMap.KeyProperty.PropertyInfo.GetValue(childEntity)!;
+            var alreadyExists = false;
+            
+            foreach (var item in collection)
+            {
+                var itemKey = childMap.KeyProperty.PropertyInfo.GetValue(item)!;
+                if (itemKey.Equals(childKeyValue))
+                {
+                    alreadyExists = true;
+                    break;
+                }
+            }
+            
+            if (!alreadyExists)
+            {
+                collection.Add(childEntity);
+            }
+        }
     }
 }

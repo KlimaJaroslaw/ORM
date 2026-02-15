@@ -126,13 +126,76 @@ internal class ExpressionToSqlConverter
             throw new InvalidOperationException($"Property '{propertyName}' not found in entity map for {_entityMap.EntityType.Name}");
         }
 
-        // ✅ DODAJ ALIAS TABELI (jeśli istnieje)
+        // ✅ POPRAWKA TPT: Znajdź właściwy alias tabeli dla tej kolumny
         if (!string.IsNullOrEmpty(_tableAlias))
         {
-            return $"\"{_tableAlias}\".\"{propertyMap.ColumnName}\"";
+            var correctAlias = GetTableAliasForColumn(propertyMap);
+            return $"\"{correctAlias}\".\"{propertyMap.ColumnName}\"";
         }
 
         return $"\"{propertyMap.ColumnName}\"";
+    }
+
+    /// <summary>
+    /// Dla TPT: znajdź właściwy alias tabeli dla danej kolumny.
+    /// Kolumna może być zdefiniowana w klasie bazowej (innej tabeli).
+    /// </summary>
+    private string GetTableAliasForColumn(PropertyMap propertyMap)
+    {
+        if (_entityMap.InheritanceStrategy is not ORM_v1.Mapping.Strategies.TablePerTypeStrategy)
+        {
+            // Dla nie-TPT używamy podanego aliasu
+            return _tableAlias!;
+        }
+
+        // Dla TPT: znajdź EntityMap który faktycznie definiuje tę kolumnę
+        var owningMap = FindOwningMapForColumn(_entityMap, propertyMap.ColumnName!);
+        
+        if (owningMap == null || owningMap == _entityMap)
+        {
+            // Kolumna z obecnej tabeli
+            return _tableAlias!;
+        }
+
+        // Kolumna z tabeli rodzica - zwróć alias rodzica
+        return $"t{owningMap.EntityType.Name}";
+    }
+
+    /// <summary>
+    /// Znajduje EntityMap który definiuje daną kolumnę (dla TPT może być w rodzicu).
+    /// </summary>
+    private EntityMap? FindOwningMapForColumn(EntityMap map, string columnName)
+    {
+        // Sprawdź czy kolumna jest w obecnej mapie (nie dziedziczona)
+        var hasColumn = map.ScalarProperties.Any(p => 
+            string.Equals(p.ColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+
+        if (hasColumn && map.BaseMap == null)
+        {
+            // Jest w tej mapie i to jest root - zwróć tę mapę
+            return map;
+        }
+
+        if (hasColumn && map.BaseMap != null)
+        {
+            // Sprawdź czy nie jest dziedziczona z rodzica
+            var isInherited = map.BaseMap.ScalarProperties.Any(p =>
+                string.Equals(p.ColumnName, columnName, StringComparison.OrdinalIgnoreCase));
+
+            if (!isInherited)
+            {
+                // Nie jest dziedziczona - zwróć tę mapę
+                return map;
+            }
+        }
+
+        // Szukaj w rodzicu (rekurencyjnie)
+        if (map.BaseMap != null)
+        {
+            return FindOwningMapForColumn(map.BaseMap, columnName);
+        }
+
+        return map; // Fallback
     }
 
     private string VisitConstant(ConstantExpression node)

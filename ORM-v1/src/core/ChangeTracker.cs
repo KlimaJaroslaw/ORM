@@ -65,9 +65,9 @@ public class ChangeTracker
             // Dla TPC: Student != StudentPart (nawet jeśli mają ten sam ID!)
             if (entry.Entity.GetType() == entityType)  // Porównaj dokładny typ, NIE IsAssignableFrom
             {
-                // Porównaj klucz główny - użyjemy prostego reflection
+                // ✅ POPRAWKA: Znajdź property z atrybutem [Key]
                 var keyProp = entityType.GetProperties()
-                    .FirstOrDefault(p => p.Name == "Id" || p.Name == entityType.Name + "Id");
+                    .FirstOrDefault(p => p.GetCustomAttributes(typeof(ORM_v1.Attributes.KeyAttribute), true).Any());
 
                 if (keyProp != null)
                 {
