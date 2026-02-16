@@ -428,6 +428,8 @@ riderModule.iml
 demo.db
 /ORM-v1/ORM_DOCUMENTATION
 
-/LiveDemo
+LiveDemo/bin/
+LiveDemo/obj/
+LiveDemo/school.db
 
-/notatki
+notatki/
