@@ -228,10 +228,12 @@ public class SqliteSqlGenerator : ISqlGenerator
                     var joinTable = includeJoin.Join.JoinedEntity.TableName;
                     var joinAlias = includeJoin.TableAlias; // Alias zdefiniowany w Include
 
-                    // Budujemy warunek złączenia używając aktualnego aliasu tabeli (alias) jako rodzica
-                    var condition = BuildJoinCondition(includeJoin, alias);
+                    // ✅ POPRAWKA TPC: Budujemy warunek JOIN używając LOKALNEGO aliasu bieżącej tabeli
+                    // Nie używamy includeJoin.Join.ParentAlias (który jest ustawiony globalnie),
+                    // tylko lokalny alias tej konkretnej tabeli w UNION (np. "employees" lub "teachers")
+                    var localJoinCondition = BuildJoinConditionForTPC(includeJoin.Join, alias, joinAlias);
 
-                    builder.LeftJoin(QuoteIdentifier(joinTable), QuoteIdentifier(joinAlias), condition);
+                    builder.LeftJoin(QuoteIdentifier(joinTable), QuoteIdentifier(joinAlias), localJoinCondition);
                     
                     // Uwaga: Jeśli dołączana tabela też jest w hierarchii TPT/TPC, 
                     // tutaj można by dodać rekurencyjne łączenie, ale dla 1:1 wystarczy prosty LEFT JOIN.
@@ -864,16 +866,30 @@ public class SqliteSqlGenerator : ISqlGenerator
     /// </summary>
     private string BuildJoinCondition(IncludeJoinInfo info, string parentAlias)
     {
-        // 1. Pobieramy wewnętrzny obiekt JoinClause, który ma już ustalone właściwości
+        // 1. Pobieramy wewnętrzny obiekt JoinClause
         var joinClause = info.Join; 
         
-        // 2. Alias tabeli dołączanej (dziecka)
+        // 2. Alias tabeli dołączanej (target/child)
         var childAlias = info.TableAlias;
 
-        // 3. Budujemy warunek używając właściwości z JoinClause (LeftProperty = Rodzic, RightProperty = Dziecko)
-        // Dzięki temu nie musimy szukać SourceMap ani JoinedEntity ręcznie.
+        // 3. Budujemy warunek JOIN
+        // ParentAlias jest już poprawnie ustawiony w ProcessIncludeRecursively
+        var leftAlias = joinClause.ParentAlias ?? parentAlias;
+
+        var leftCol = $"{QuoteIdentifier(leftAlias)}.{QuoteIdentifier(joinClause.LeftProperty.ColumnName!)}";
+        var rightCol = $"{QuoteIdentifier(childAlias)}.{QuoteIdentifier(joinClause.RightProperty.ColumnName!)}";
         
-        var leftCol = $"{QuoteIdentifier(parentAlias)}.{QuoteIdentifier(joinClause.LeftProperty.ColumnName!)}";
+        return $"{leftCol} = {rightCol}";
+    }
+
+    /// <summary>
+    /// Buduje warunek JOIN dla TPC UNION - używa lokalnego aliasu tabeli zamiast globalnego ParentAlias.
+    /// </summary>
+    private string BuildJoinConditionForTPC(JoinClause joinClause, string localParentAlias, string childAlias)
+    {
+        // Dla TPC w UNION każda tabela ma swój własny alias (np. "employees", "teachers")
+        // Ignorujemy joinClause.ParentAlias (który jest globalny) i używamy localParentAlias
+        var leftCol = $"{QuoteIdentifier(localParentAlias)}.{QuoteIdentifier(joinClause.LeftProperty.ColumnName!)}";
         var rightCol = $"{QuoteIdentifier(childAlias)}.{QuoteIdentifier(joinClause.RightProperty.ColumnName!)}";
         
         return $"{leftCol} = {rightCol}";

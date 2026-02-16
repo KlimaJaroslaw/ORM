@@ -768,6 +768,20 @@ public class DatabaseFacade
 
                 if (fkProp != null && fkProp.ColumnName != null && nav.TargetType != null)
                 {
+                    // ✅ POPRAWKA TPT: Sprawdź czy FK jest zdefiniowany w BIEŻĄCEJ klasie, nie dziedziczony
+                    if (map.InheritanceStrategy is TablePerTypeStrategy && map.BaseMap != null)
+                    {
+                        // Sprawdź czy właściwość FK jest zdefiniowana w tej klasie (nie w rodzicu)
+                        var isDeclaredInThisClass = fkProp.PropertyInfo.DeclaringType == map.EntityType;
+                        
+                        if (!isDeclaredInThisClass)
+                        // Sprawdź czy właściwość FK jest zdefiniowana w tej klasie (nie w rodzicu)
+                        {
+                            Console.WriteLine($"    Skipping FK - property declared in base class {fkProp.PropertyInfo.DeclaringType?.Name}");
+                            continue; // FK zostanie dodany w tabeli rodzica
+                        }
+                    }
+
                     var targetMap = metadataStore.GetMap(nav.TargetType);
                     
                     // Ustal nazwę tabeli docelowej (obsługa TPH - targetem jest Root Table)
