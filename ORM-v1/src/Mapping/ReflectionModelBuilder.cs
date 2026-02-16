@@ -165,17 +165,34 @@ namespace ORM_v1.Mapping
             var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             var list = new List<PropertyMap>();
 
+            Console.WriteLine($"[DEBUG BuildPropertyMaps] Dla typu {type.Name}, znaleziono {properties.Length} właściwości");
+
             foreach (var prop in properties)
             {
                 // Helper lambda do wykrywania encji
                 var map = PropertyMap.FromPropertyInfo(
                     prop,
                     naming,
-                    t => IsTypeEntityCandidate(t) 
+                    t => {
+                        var isEntity = IsTypeEntityCandidate(t);
+                        Console.WriteLine($"  Prop '{prop.Name}' (typ: {prop.PropertyType.Name}) - isEntity={isEntity}");
+                        return isEntity;
+                    }
                 );
 
-                if (!map.IsIgnored) list.Add(map);
+                if (!map.IsIgnored)
+                {
+                    list.Add(map);
+                    Console.WriteLine($"    → dodano jako {(map.IsNavigation ? "NAVIGATION" : "SCALAR")} (ForeignKeyName={map.ForeignKeyName})");
+                }
+                else
+                {
+                    Console.WriteLine($"    → pominięto (IGNORED)");
+                }
             }
+            
+            Console.WriteLine($"[DEBUG] Typ {type.Name}: ScalarProps={list.Count(p => !p.IsNavigation)}, NavProps={list.Count(p => p.IsNavigation)}");
+            
             return list;
         }
 
