@@ -248,7 +248,7 @@ public static class QueryableExtensions
 
         // Materializuj encje
         using var reader = command.ExecuteReader();
-        var materializer = new ObjectMaterializer(entityMap, metadataStore);
+        var materializer = new ObjectMaterializer(entityMap, metadataStore, context);
         var ordinals = GetOrdinals(reader, entityMap, tableAlias);
         var entities = new List<TEntity>();
 
@@ -551,185 +551,184 @@ public static class QueryableExtensions
         DbContext context)
         where TEntity : class
     {
-        var materializer = new ObjectMaterializer(entityMap, metadataStore);
+        // 1. Inicjalizacja materializera dla głównej encji
+        var materializer = new ObjectMaterializer(entityMap, metadataStore, context);
         var primaryOrdinals = GetOrdinals(reader, entityMap, primaryEntityAlias);
 
-        // Przygotuj materializers dla joined entities
+        // 2. Przygotuj materializery dla wszystkich joinów
+        // Słownik: Alias tabeli -> (Materializer, Ordinals, NavigationProperty, Mapa bazowa Joina)
         var joinMaterializers = new Dictionary<string, (ObjectMaterializer materializer, int[] ordinals, PropertyMap navProp, EntityMap entityMap)>();
 
         foreach (var includeJoin in includeJoins)
         {
             var targetMap = includeJoin.Join.JoinedEntity;
-            var targetMaterializer = new ObjectMaterializer(targetMap, metadataStore);
+            var targetMaterializer = new ObjectMaterializer(targetMap, metadataStore, context);
             var targetOrdinals = GetOrdinals(reader, targetMap, includeJoin.TableAlias);
 
             joinMaterializers[includeJoin.TableAlias] = (targetMaterializer, targetOrdinals, includeJoin.NavigationProperty, targetMap);
         }
 
-        // Słownik głównych encji według primary key
+        // Słownik głównych encji (Root) według Primary Key, żeby nie dublować wierszy w wyniku
         var entitiesDict = new Dictionary<object, TEntity>();
 
-        // Słownik kolekcji per entity instance (nie per primary key!) dla zagnieżdżonych includes
-        // Dictionary<entity object reference, Dictionary<propertyName, IList>>
+        // Słownik kolekcji: EntityInstance -> PropertyName -> ListOfRelatedEntities
+        // Potrzebne, żeby grupować dzieci dla KAŻDEGO rodzica (nie tylko Roota)
         var collectionsByEntity = new Dictionary<object, Dictionary<string, IList>>();
 
-        int rowCount = 0;
         while (reader.Read())
         {
-            rowCount++;
-            // 1. MATERIALIZUJ ROOT ENTITY
+            // --- A. Materializacja Root Entity ---
             var tempEntity = (TEntity)materializer.Materialize(reader, primaryOrdinals);
-            var primaryKey = entityMap.KeyProperty.PropertyInfo.GetValue(tempEntity)!;
-
-            Console.WriteLine($"[DEBUG] Wiersz #{rowCount}: PrimaryKey={primaryKey}, Type={typeof(TEntity).Name}");
+            
+            // Pobieramy klucz (bezpiecznie dla TPC/TPT)
+            var actualRootType = tempEntity.GetType();
+            var actualRootMap = metadataStore.GetMap(actualRootType);
+            var primaryKey = actualRootMap.KeyProperty.PropertyInfo.GetValue(tempEntity)!;
 
             TEntity entity;
+
+            // Sprawdzamy czy już mamy tę główną encję w wynikach zapytania
             if (!entitiesDict.ContainsKey(primaryKey))
             {
-                Console.WriteLine($"[DEBUG]   -> Nowa encja, dodaję do słownika");
-                // Sprawdź czy już śledzona w ChangeTracker (Identity Map)
-                var trackedEntity = context.ChangeTracker.FindTracked(typeof(TEntity), primaryKey) as TEntity;
-
+                // Sprawdź w Identity Map (ChangeTracker)
+                var trackedEntity = context.ChangeTracker.FindTracked(actualRootType, primaryKey);
+                
                 if (trackedEntity != null)
                 {
-                    entity = trackedEntity;
-                    Console.WriteLine($"[DEBUG]   -> Znaleziono w ChangeTracker");
+                    entity = (TEntity)trackedEntity;
                 }
                 else
                 {
                     entity = tempEntity;
                     context.ChangeTracker.Track(entity, EntityState.Unchanged);
-                    Console.WriteLine($"[DEBUG]   -> Nowa instancja, dodano do ChangeTracker");
                 }
 
                 entitiesDict[primaryKey] = entity;
-                collectionsByEntity[entity] = new Dictionary<string, IList>();
             }
             else
             {
                 entity = entitiesDict[primaryKey];
-                Console.WriteLine($"[DEBUG]   -> Encja już istnieje w słowniku (duplikat PK)");
             }
 
-            // 2. MATERIALIZUJ ZAGNIEŻDŻONE ENCJE W HIERARCHII
-            // Słownik zmaterializowanych encji w tym wierszu: alias → entity instance
+            // --- B. Materializacja Zagnieżdżonych Encji (Include/ThenInclude) ---
+            
+            // Słownik encji w bieżącym wierszu: Alias -> Instancja
+            // Używany do wiązania rodzic-dziecko w ramach jednego wiersza
             var currentRowEntities = new Dictionary<string, object>
             {
                 [primaryEntityAlias ?? "primary"] = entity
             };
 
-            // Sortuj includeJoins według poziomu zagnieżdżenia (depth-first order)
+            // Sortujemy joiny według głębokości (Depth), żeby najpierw zmaterializować rodzica, potem dziecko
+            // (IncludeInfo.PathSegments.Length określa głębokość)
             var sortedJoins = includeJoins
-                .Select(ij => new { IncludeJoin = ij, Depth = ij.IncludeInfo?.PathSegments.Length ?? 1 })
-                .OrderBy(x => x.Depth)
-                .Select(x => x.IncludeJoin)
+                .OrderBy(ij => ij.IncludeInfo?.PathSegments.Length ?? 1)
                 .ToList();
 
             foreach (var includeJoin in sortedJoins)
             {
-                var (joinMaterializer, joinOrdinals, navProp, relatedMap) = joinMaterializers[includeJoin.TableAlias];
+                var (joinMaterializer, joinOrdinals, navProp, relatedMapBase) = joinMaterializers[includeJoin.TableAlias];
 
-                // Sprawdź czy joined row ma dane (LEFT JOIN może zwrócić NULL)
-                if (IsJoinedRowNull(reader, joinOrdinals))
+                // 1. Sprawdź czy joined row ma dane
+                if (IsJoinedRowNull(reader, joinOrdinals, relatedMapBase))
                     continue;
 
-                // Materializuj powiązaną encję
+                // 2. Materializuj powiązaną encję
                 var tempRelatedEntity = joinMaterializer.Materialize(reader, joinOrdinals);
-                var relatedKeyValue = relatedMap.KeyProperty.PropertyInfo.GetValue(tempRelatedEntity)!;
 
-                // Identity Map check
-                var relatedEntity = context.ChangeTracker.FindTracked(navProp.TargetType!, relatedKeyValue);
+                // === FIX: Pobierz klucz z RZECZYWISTEGO typu ===
+                var actualRelatedType = tempRelatedEntity.GetType();
+                var actualRelatedMap = metadataStore.GetMap(actualRelatedType);
+                var relatedKeyValue = actualRelatedMap.KeyProperty.PropertyInfo.GetValue(tempRelatedEntity)!;
+                // ==============================================
+
+                // 3. Identity Map check
+                var relatedEntity = context.ChangeTracker.FindTracked(actualRelatedType, relatedKeyValue);
                 if (relatedEntity == null)
                 {
                     relatedEntity = tempRelatedEntity;
                     context.ChangeTracker.Track(relatedEntity, EntityState.Unchanged);
                 }
 
-                // 3. ZNAJDŹ RODZICA DLA TEGO JOINA (wsparcie dla ThenInclude!)
+                // Zapisz do bieżącego wiersza (dla ThenInclude)
+                currentRowEntities[includeJoin.TableAlias] = relatedEntity;
+
+                // 4. Znajdź RODZICA
                 var parentAlias = includeJoin.Join.ParentAlias ?? primaryEntityAlias ?? "primary";
 
                 if (!currentRowEntities.TryGetValue(parentAlias, out var parentEntity))
                 {
-                    // Rodzic nie zmaterializowany w tym wierszu (LEFT JOIN null parent) - pomiń
                     continue;
                 }
 
-                // 4. PRZYPISZ DO WŁAŚCIWEGO RODZICA
+                // 5. Przypisz dziecko do rodzica
                 if (navProp.IsCollection)
                 {
-                    // ONE-TO-MANY: dodaj do kolekcji RODZICA (nie root!)
                     if (!collectionsByEntity.ContainsKey(parentEntity))
                     {
                         collectionsByEntity[parentEntity] = new Dictionary<string, IList>();
                     }
+                    var parentCollections = collectionsByEntity[parentEntity];
 
-                    var collections = collectionsByEntity[parentEntity];
-
-                    if (!collections.ContainsKey(navProp.PropertyInfo.Name))
+                    if (!parentCollections.ContainsKey(navProp.PropertyInfo.Name))
                     {
                         var listType = typeof(List<>).MakeGenericType(navProp.TargetType!);
-                        collections[navProp.PropertyInfo.Name] = (IList)Activator.CreateInstance(listType)!;
+                        parentCollections[navProp.PropertyInfo.Name] = (IList)Activator.CreateInstance(listType)!;
                     }
+                    var collection = parentCollections[navProp.PropertyInfo.Name];
 
-                    var collection = collections[navProp.PropertyInfo.Name];
-
-                    // Unikaj duplikatów
-                    var relatedKey = relatedMap.KeyProperty.PropertyInfo.GetValue(relatedEntity)!;
-                    var alreadyExists = false;
+                    bool alreadyExists = false;
                     foreach (var item in collection)
                     {
-                        var itemKey = relatedMap.KeyProperty.PropertyInfo.GetValue(item)!;
-                        if (itemKey.Equals(relatedKey))
+                        var itemKey = actualRelatedMap.KeyProperty.PropertyInfo.GetValue(item)!;
+                        if (itemKey.Equals(relatedKeyValue))
                         {
                             alreadyExists = true;
                             break;
                         }
                     }
 
-                    if (!alreadyExists)
+                    // --- GUARD CLAUSE DLA KOLEKCJI ---
+                    // Sprawdzamy czy typ obiektu pasuje do typu elementów listy
+                    if (!alreadyExists && navProp.TargetType!.IsInstanceOfType(relatedEntity))
                     {
                         collection.Add(relatedEntity);
-                        
-                        // ✅ RELATIONSHIP FIXUP: Ustaw odwrotną stronę relacji (inverse navigation property + FK)
-                        // Przykład: Student.Courses → Course.Student i Course.StudentId
-                        var parentEntityMap = metadataStore.GetMap(parentEntity.GetType());
-                        FixupInverseRelationship(relatedEntity, parentEntity, relatedMap, parentEntityMap);
                     }
                 }
                 else
                 {
-                    // MANY-TO-ONE lub ONE-TO-ONE: przypisz bezpośrednio do rodzica
-                    navProp.PropertyInfo.SetValue(parentEntity, relatedEntity);
+                    // --- Relacja 1:1 lub N:1 ---
                     
-                    // ✅ RELATIONSHIP FIXUP: Ustaw odwrotną stronę relacji jeśli istnieje
-                    // Przykład: Course.Student → Student.Courses (jeśli jeszcze nie dodane)
-                    var parentEntityMap = metadataStore.GetMap(parentEntity.GetType());
-                    FixupInverseCollectionRelationship(parentEntity, relatedEntity, parentEntityMap, relatedMap);
+                    // !!! TU JEST FIX GŁÓWNY !!!
+                    // Sprawdzamy czy relatedEntity (np. Teacher) pasuje do typu właściwości (np. EmployeeNavi)
+                    if (navProp.PropertyType.IsInstanceOfType(relatedEntity))
+                    {
+                        navProp.PropertyInfo.SetValue(parentEntity, relatedEntity);
+                    }
+                    else
+                    {
+                        // Opcjonalnie: Logowanie, że wykryto mismatch typów i pominięto przypisanie
+                        Console.WriteLine($"[WARNING] Type mismatch: Cannot assign {relatedEntity.GetType().Name} to {navProp.PropertyInfo.Name} ({navProp.PropertyType.Name})");
+                    }
                 }
-
-                // Zapisz zmaterializowaną encję do currentRowEntities dla dalszych ThenInclude
-                currentRowEntities[includeJoin.TableAlias] = relatedEntity;
             }
         }
 
-        // 5. PRZYPISZ KOLEKCJE DO WSZYSTKICH ENCJI (nie tylko root!)
+        // 3. Po przetworzeniu wszystkich wierszy, przypisz zbudowane kolekcje do obiektów
         foreach (var kvp in collectionsByEntity)
         {
-            var parentEntity = kvp.Key;
-            var collections = kvp.Value;
+            var entity = kvp.Key;
+            var collections = kvp.Value; // Dictionary<PropertyName, List>
 
-            foreach (var collection in collections)
+            foreach (var colKvp in collections)
             {
-                var navPropName = collection.Key;
-                var navPropList = collection.Value;
+                var propName = colKvp.Key;
+                var list = colKvp.Value;
 
-                // Znajdź PropertyInfo na typie rodzica
-                var parentType = parentEntity.GetType();
-                var navPropInfo = parentType.GetProperty(navPropName);
-
-                if (navPropInfo != null)
+                var propInfo = entity.GetType().GetProperty(propName);
+                if (propInfo != null)
                 {
-                    navPropInfo.SetValue(parentEntity, navPropList);
+                    propInfo.SetValue(entity, list);
                 }
             }
         }
@@ -878,18 +877,57 @@ public static class QueryableExtensions
     /// <summary>
     /// Sprawdza czy joined row zawiera NULL (LEFT JOIN bez match).
     /// </summary>
-    private static bool IsJoinedRowNull(IDataReader reader, int[] ordinals)
+    // private static bool IsJoinedRowNull(IDataReader reader, int[] ordinals)
+    // {
+    //     // Jeśli wszystkie kolumny joined entity są NULL, to nie ma match
+    //     foreach (var ordinal in ordinals)
+    //     {
+    //         if (ordinal >= 0 && !reader.IsDBNull(ordinal))
+    //         {
+    //             return false; // Przynajmniej jedna kolumna ma wartość
+    //         }
+    //     }
+
+    //     return true; // Wszystkie NULL lub brak kolumn
+    // }
+
+    private static bool IsJoinedRowNull(IDataReader reader, int[] ordinals, EntityMap map)
     {
-        // Jeśli wszystkie kolumny joined entity są NULL, to nie ma match
-        foreach (var ordinal in ordinals)
+        // Znajdź indeks kolumny klucza głównego w tablicy ordinals
+        // Kolejność w 'ordinals' odpowiada kolejności w 'map.ScalarProperties'
+        var keyProp = map.KeyProperty;
+        int keyIndex = -1;
+        
+        for(int i=0; i<map.ScalarProperties.Count; i++)
         {
-            if (ordinal >= 0 && !reader.IsDBNull(ordinal))
+            if(map.ScalarProperties[i] == keyProp)
             {
-                return false; // Przynajmniej jedna kolumna ma wartość
+                keyIndex = i;
+                break;
             }
         }
 
-        return true; // Wszystkie NULL lub brak kolumn
+        if (keyIndex >= 0 && keyIndex < ordinals.Length)
+        {
+            int ordinal = ordinals[keyIndex];
+            // Jeśli ordinal jest poprawny i wartość w bazie to NULL -> wiersz z JOINa nie istnieje
+            if (ordinal >= 0 && reader.IsDBNull(ordinal))
+            {
+                return true;
+            }
+             // Jeśli ordinal jest poprawny i wartość JEST -> wiersz istnieje
+            if (ordinal >= 0)
+            {
+                return false;
+            }
+        }
+
+        // Fallback: Jeśli nie znaleźliśmy PK, sprawdzamy czy WSZYSTKIE kolumny są null
+        foreach (var ord in ordinals)
+        {
+            if (ord >= 0 && !reader.IsDBNull(ord)) return false;
+        }
+        return true;
     }
 
     /// <summary>

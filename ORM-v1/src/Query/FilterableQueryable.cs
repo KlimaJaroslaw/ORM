@@ -13,7 +13,8 @@ namespace ORM_v1.Query;
 public class FilterableQueryable<TEntity> : IQueryable<TEntity> where TEntity : class
 {
     private readonly IQueryable<TEntity> _source;
-    internal readonly DbContext Context;
+    // internal readonly DbContext Context;
+    public DbContext Context { get; }
     internal readonly Expression<Func<TEntity, bool>> Predicate;
 
     internal FilterableQueryable(

@@ -5,6 +5,7 @@ using System.Data;
 using System.Linq;
 using System.Linq.Expressions;
 using ORM_v1.Mapping.Strategies;
+using ORM_v1.core;
 
 namespace ORM_v1.Mapping
 {
@@ -14,14 +15,14 @@ namespace ORM_v1.Mapping
         private readonly IMetadataStore _metadataStore;
         private readonly Func<object> _factory;
         private readonly Dictionary<PropertyMap, Action<object, object?>> _setters;
-
+        private readonly DbContext? _context;
         private readonly ConcurrentDictionary<Type, ObjectMaterializer> _derivedMaterializers = new();
 
-        public ObjectMaterializer(EntityMap map, IMetadataStore metadataStore)
+        public ObjectMaterializer(EntityMap map, IMetadataStore metadataStore, DbContext? context = null)
         {
             _rootMap = map ?? throw new ArgumentNullException(nameof(map));
             _metadataStore = metadataStore ?? throw new ArgumentNullException(nameof(metadataStore));
-
+            _context = context ?? throw new ArgumentNullException(nameof(context));
             if (!map.IsAbstract)
             {
                 _factory = CreateFactory(map.EntityType);
@@ -65,7 +66,13 @@ namespace ORM_v1.Mapping
                     
                     if (!string.Equals(discriminatorValue, _rootMap.EntityType.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        return MaterializeDerivedByTypeName(record, discriminatorValue);
+                        var candidateMap = _metadataStore.GetAllMaps()
+                            .FirstOrDefault(m => string.Equals(m.EntityType.Name, discriminatorValue, StringComparison.OrdinalIgnoreCase));
+
+                        if (candidateMap != null && _rootMap.EntityType.IsAssignableFrom(candidateMap.EntityType))
+                        {
+                             return MaterializeDerivedByTypeName(record, discriminatorValue);
+                        }
                     }
                 }
             }
@@ -80,7 +87,7 @@ namespace ORM_v1.Mapping
                     // Zmaterializuj jako typ pochodny
                     var derivedMap = _metadataStore.GetMap(mostDerivedType);
                     var materializer = _derivedMaterializers.GetOrAdd(mostDerivedType, _ => 
-                        new ObjectMaterializer(derivedMap, _metadataStore));
+                        new ObjectMaterializer(derivedMap, _metadataStore, _context));
 
                     var derivedOrdinals = GetOrdinalsForMap(record, derivedMap);
                     return materializer.Materialize(record, derivedOrdinals);
@@ -94,10 +101,38 @@ namespace ORM_v1.Mapping
                     "Discriminator value was missing or did not match any known derived type.");
             }
 
+            var keyProp = _rootMap.KeyProperty;
+            int keyIndex = -1;
+            var props = _rootMap.ScalarProperties;
+            for (int i = 0; i < props.Count; i++)
+            {
+                if (props[i] == keyProp)
+                {
+                    keyIndex = i;
+                    break;
+                }
+            }
+            if (keyIndex >= 0 && keyIndex < ordinals.Length)
+            {
+                int keyOrdinal = ordinals[keyIndex];
+                if (keyOrdinal >= 0 && !record.IsDBNull(keyOrdinal))
+                {
+                    object keyValue = record.GetValue(keyOrdinal);
+                    keyValue = ConvertValue(keyValue, keyProp);
+                    
+                    var tracked = _context.ChangeTracker.FindTracked(_rootMap.EntityType, keyValue);
+                    if (tracked != null)
+                    {
+                        // Console.WriteLine($"[DEBUG Materialize] Zwracam z CACHE {_rootMap.EntityType.Name} ID={keyValue}");
+                        return tracked;
+                    }
+                }
+            }
+
             var instance = _factory();
             int index = 0;
 
-            Console.WriteLine($"[DEBUG Materialize] Materializuję {_rootMap.EntityType.Name}, ScalarProperties.Count={_rootMap.ScalarProperties.Count}, instance.GetHashCode()={instance.GetHashCode()}");
+            // Console.WriteLine($"[DEBUG Materialize] Materializuję {_rootMap.EntityType.Name}, ScalarProperties.Count={_rootMap.ScalarProperties.Count}, instance.GetHashCode()={instance.GetHashCode()}");
 
             foreach (var prop in _rootMap.ScalarProperties)
             {
@@ -105,23 +140,23 @@ namespace ORM_v1.Mapping
 
                 int ordinal = ordinals[index++];
 
-                Console.WriteLine($"  Property: {prop.PropertyInfo.Name}, ordinal={ordinal}");
+                // Console.WriteLine($"  Property: {prop.PropertyInfo.Name}, ordinal={ordinal}");
 
                 if (ordinal < 0)
                 {
-                    Console.WriteLine($"    -> ordinal < 0, pomijam");
+                    // Console.WriteLine($"    -> ordinal < 0, pomijam");
                     continue;
                 }
 
                 if (!_setters.TryGetValue(prop, out var setter))
                 {
-                    Console.WriteLine($"    -> brak settera, pomijam");
+                    // Console.WriteLine($"    -> brak settera, pomijam");
                     continue;
                 }
 
                 object? value = record.IsDBNull(ordinal) ? null : record.GetValue(ordinal);
 
-                Console.WriteLine($"    -> wartość z kolumny[{ordinal}] '{record.GetName(ordinal)}' = {value ?? "NULL"}");
+                // Console.WriteLine($"    -> wartość z kolumny[{ordinal}] '{record.GetName(ordinal)}' = {value ?? "NULL"}");
 
                 if (value == null &&
                     prop.PropertyType.IsValueType &&
@@ -138,10 +173,10 @@ namespace ORM_v1.Mapping
                 }
 
                 setter(instance, value);
-                Console.WriteLine($"    -> ustawiono {prop.PropertyInfo.Name} = {value}");
+                // Console.WriteLine($"    -> ustawiono {prop.PropertyInfo.Name} = {value}");
             }
 
-            Console.WriteLine($"[DEBUG Materialize] Zwracam instancję {_rootMap.EntityType.Name}.GetHashCode()={instance.GetHashCode()}");
+            // Console.WriteLine($"[DEBUG Materialize] Zwracam instancję {_rootMap.EntityType.Name}.GetHashCode()={instance.GetHashCode()}");
 
             return instance;
         }
@@ -158,7 +193,7 @@ namespace ORM_v1.Mapping
             }
 
             var materializer = _derivedMaterializers.GetOrAdd(derivedMap.EntityType, _ => 
-                new ObjectMaterializer(derivedMap, _metadataStore));
+                new ObjectMaterializer(derivedMap, _metadataStore, _context));
 
             var derivedOrdinals = GetOrdinalsForMap(record, derivedMap);
 
@@ -197,6 +232,31 @@ namespace ORM_v1.Mapping
             {
                 throw new InvalidOperationException(
                     $"Cannot instantiate abstract class '{map.EntityType.Name}'.");
+            }
+
+            var keyProp = map.KeyProperty;
+            int keyIndex = -1;
+            
+            var props = map.ScalarProperties;
+            for (int i = 0; i < props.Count; i++)
+            {
+                if (props[i] == keyProp) 
+                {
+                    keyIndex = i; 
+                    break;
+                }
+            }
+            if (keyIndex >= 0 && keyIndex < ordinals.Length)
+            {
+                int keyOrdinal = ordinals[keyIndex];
+                if (keyOrdinal >= 0 && !record.IsDBNull(keyOrdinal))
+                {
+                    object keyValue = record.GetValue(keyOrdinal);
+                    keyValue = ConvertValue(keyValue, keyProp);
+                    
+                    var tracked = _context.ChangeTracker.FindTracked(map.EntityType, keyValue);
+                    if (tracked != null) return tracked;
+                }
             }
 
             var factory = CreateFactory(map.EntityType);
@@ -380,7 +440,7 @@ namespace ORM_v1.Mapping
                 .OrderByDescending(t => GetInheritanceDepth(t))
                 .ToList();
 
-            Console.WriteLine($"[DEBUG TPT] Wykrywanie typu dla {_rootMap.EntityType.Name}, candidates: {string.Join(", ", sortedTypes.Select(t => t.EntityType.Name))}");
+            // Console.WriteLine($"[DEBUG TPT] Wykrywanie typu dla {_rootMap.EntityType.Name}, candidates: {string.Join(", ", sortedTypes.Select(t => t.EntityType.Name))}");
 
             // Sprawdź każdy typ od najbardziej pochodnego
             foreach (var candidateMap in sortedTypes)
@@ -390,7 +450,7 @@ namespace ORM_v1.Mapping
 
                 if (!ownColumns.Any())
                 {
-                    Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - brak własnych kolumn, pomijam");
+                    // Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - brak własnych kolumn, pomijam");
                     continue;
                 }
 
@@ -402,7 +462,7 @@ namespace ORM_v1.Mapping
                     if (ordinal >= 0 && !record.IsDBNull(ordinal))
                     {
                         hasAnyValue = true;
-                        Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - kolumna '{columnName}' ma wartość → MATCH!");
+                        // Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - kolumna '{columnName}' ma wartość → MATCH!");
                         break;
                     }
                 }
@@ -412,11 +472,11 @@ namespace ORM_v1.Mapping
                     return candidateMap.EntityType; // Znaleziono najbardziej konkretny typ
                 }
 
-                Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - wszystkie własne kolumny NULL");
+                // Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - wszystkie własne kolumny NULL");
             }
 
             // Nie znaleziono typu pochodnego - zwróć typ bazowy
-            Console.WriteLine($"[DEBUG TPT]   Brak typu pochodnego, zwracam {_rootMap.EntityType.Name}");
+            // Console.WriteLine($"[DEBUG TPT]   Brak typu pochodnego, zwracam {_rootMap.EntityType.Name}");
             return _rootMap.EntityType;
         }
 
