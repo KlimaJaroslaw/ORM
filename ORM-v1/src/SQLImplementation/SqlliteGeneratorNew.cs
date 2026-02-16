@@ -191,19 +191,63 @@ public class SqliteSqlGenerator : ISqlGenerator
 
         foreach (var hierarchyMap in context.HierarchyMaps)
         {
-            // Dla każdej konkretnej klasy wygeneruj SELECT z NULL dla brakujących kolumn
-            var selectColumns = BuildTPCSelectColumns(hierarchyMap, allColumns);
+            // 1. Alias dla konkretnej tabeli (np. "employees" lub "teachers")
+            var alias = hierarchyMap.TableName.ToLowerInvariant();
+
+            // 2. Budowanie kolumn (dodaje NULL dla brakujących)
+            var selectColumns = BuildTPCSelectColumns(hierarchyMap, allColumns).ToList();
+            if (queryModel.IncludeJoins != null)
+            {
+                foreach (var includeJoin in queryModel.IncludeJoins)
+                {
+                    var joinedMap = includeJoin.Join.JoinedEntity;
+                    var joinAlias = includeJoin.TableAlias;
+
+                    foreach (var prop in joinedMap.ScalarProperties)
+                    {
+                        if (!string.IsNullOrEmpty(prop.ColumnName))
+                        {
+                             // Generujemy: "joinAlias"."col" AS "joinAlias_col"
+                             selectColumns.Add($"{QuoteIdentifier(joinAlias)}.{QuoteIdentifier(prop.ColumnName)} AS {QuoteIdentifier($"{joinAlias}_{prop.ColumnName}")}");
+                        }
+                    }
+                }
+            }
 
             var builder = new SqlQueryBuilder();
             builder.Select(selectColumns);
-            builder.From(QuoteIdentifier(hierarchyMap.TableName));  // ❌ BEZ ALIASU!
+            
+            // Używamy aliasu w FROM, żeby JOIN-y miały się do czego odwołać
+            builder.FromWithAlias(QuoteIdentifier(hierarchyMap.TableName), QuoteIdentifier(alias));
 
-            // WHERE clause (jeśli istnieje)
+            // Dodajemy obsługę JOIN-ów (Include/ThenInclude)
+            if (queryModel.IncludeJoins != null)
+            {
+                foreach (var includeJoin in queryModel.IncludeJoins)
+                {
+                    var joinTable = includeJoin.Join.JoinedEntity.TableName;
+                    var joinAlias = includeJoin.TableAlias; // Alias zdefiniowany w Include
+
+                    // Budujemy warunek złączenia używając aktualnego aliasu tabeli (alias) jako rodzica
+                    var condition = BuildJoinCondition(includeJoin, alias);
+
+                    builder.LeftJoin(QuoteIdentifier(joinTable), QuoteIdentifier(joinAlias), condition);
+                    
+                    // Uwaga: Jeśli dołączana tabela też jest w hierarchii TPT/TPC, 
+                    // tutaj można by dodać rekurencyjne łączenie, ale dla 1:1 wystarczy prosty LEFT JOIN.
+                }
+            }
+
+            // 3. WHERE clause
             if (!string.IsNullOrEmpty(queryModel.WhereClause))
             {
-                // ✅ Usuń aliasy z WHERE clause dla TPC (tabele nie mają aliasów!)
-                var whereWithoutAliases = RemoveAliasesFromWhereClause(queryModel.WhereClause, hierarchyMap);
-                builder.Where(whereWithoutAliases);
+                // ✅ ZMIANA 3: Zamiast usuwać aliasy, podmieniamy alias "główny" na alias aktualnej tabeli
+                // Np. "person"."Key" -> "employees"."Key"
+                var fixedWhere = queryModel.WhereClause.Replace(
+                    $"{QuoteIdentifier(queryModel.PrimaryEntityAlias)}.", 
+                    $"{QuoteIdentifier(alias)}.");
+                
+                builder.Where(fixedWhere);
             }
 
             unionQueries.Add(builder.ToString());
@@ -218,11 +262,12 @@ public class SqliteSqlGenerator : ISqlGenerator
             var finalBuilder = new System.Text.StringBuilder();
             finalBuilder.Append("SELECT * FROM (");
             finalBuilder.Append(unionSql);
-            finalBuilder.Append(")");
+            finalBuilder.Append(") AS _u"); // Alias dla całego wyniku UNION
 
             if (queryModel.OrderBy.Any())
             {
                 var orderClauses = queryModel.OrderBy.Select(o =>
+                    // Tutaj używamy aliasu kolumny, który jest taki sam jak nazwa property
                     $"{QuoteIdentifier(o.Property.ColumnName!)} {(o.IsAscending ? "ASC" : "DESC")}");
                 finalBuilder.Append(" ORDER BY ");
                 finalBuilder.Append(string.Join(", ", orderClauses));
@@ -285,11 +330,13 @@ public class SqliteSqlGenerator : ISqlGenerator
             map.ScalarProperties.Select(p => p.ColumnName!),
             StringComparer.OrdinalIgnoreCase);
 
+        var alias = map.TableName.ToLowerInvariant();
+
         foreach (var columnName in allColumns)
         {
             if (existingColumns.Contains(columnName))
             {
-                columns.Add($"{QuoteIdentifier(columnName)} AS {QuoteIdentifier(columnName)}");
+                columns.Add($"{QuoteIdentifier(alias)}.{QuoteIdentifier(columnName)} AS {QuoteIdentifier(columnName)}");
             }
             else
             {
@@ -298,7 +345,6 @@ public class SqliteSqlGenerator : ISqlGenerator
             }
         }
 
-        // ✅ DODAJ SYNTETYCZNY DISCRIMINATOR
         // TPC nie ma fizycznej kolumny Discriminator, ale potrzebujemy jej dla ObjectMaterializer
         // Dodajemy literał z nazwą typu jako "Discriminator"
         columns.Add($"'{map.EntityType.Name}' AS \"Discriminator\"");
@@ -809,6 +855,27 @@ public class SqliteSqlGenerator : ISqlGenerator
         var leftAlias = join.ParentAlias ?? primaryAlias;
         var leftCol = $"{QuoteIdentifier(leftAlias)}.{QuoteIdentifier(join.LeftProperty.ColumnName!)}";
         var rightCol = $"{QuoteIdentifier(join.Alias!)}.{QuoteIdentifier(join.RightProperty.ColumnName!)}";
+        return $"{leftCol} = {rightCol}";
+    }
+
+    /// <summary>
+    /// Buduje warunek złączenia (ON ...) dla IncludeJoinInfo.
+    /// Obsługuje relacje FK zarówno po stronie dziecka, jak i rodzica.
+    /// </summary>
+    private string BuildJoinCondition(IncludeJoinInfo info, string parentAlias)
+    {
+        // 1. Pobieramy wewnętrzny obiekt JoinClause, który ma już ustalone właściwości
+        var joinClause = info.Join; 
+        
+        // 2. Alias tabeli dołączanej (dziecka)
+        var childAlias = info.TableAlias;
+
+        // 3. Budujemy warunek używając właściwości z JoinClause (LeftProperty = Rodzic, RightProperty = Dziecko)
+        // Dzięki temu nie musimy szukać SourceMap ani JoinedEntity ręcznie.
+        
+        var leftCol = $"{QuoteIdentifier(parentAlias)}.{QuoteIdentifier(joinClause.LeftProperty.ColumnName!)}";
+        var rightCol = $"{QuoteIdentifier(childAlias)}.{QuoteIdentifier(joinClause.RightProperty.ColumnName!)}";
+        
         return $"{leftCol} = {rightCol}";
     }
 

@@ -55,7 +55,8 @@ public class DbContext : IDisposable
 
     private ObjectMaterializer GetMaterializer(EntityMap map)
     {
-        return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m, _configuration.MetadataStore));
+        // return _materializerCache.GetOrAdd(map, m => new ObjectMaterializer(m, _configuration.MetadataStore));
+        return new ObjectMaterializer(map, _configuration.MetadataStore, this);
     }
 
     protected internal IDbConnection GetConnection()
@@ -178,7 +179,8 @@ public class DbContext : IDisposable
                 }
             }
 
-            var materializer = GetMaterializer(concreteMap);
+            // var materializer = GetMaterializer(concreteMap);
+            var materializer = new ObjectMaterializer(concreteMap, _configuration.MetadataStore, this);
             
             int[] ordinals = isTph ? GetOrdinalsForReader(reader, concreteMap) : cachedOrdinals!;
 
@@ -425,17 +427,217 @@ public class DatabaseFacade
         command.ExecuteNonQuery();
     }
 
+    // private string GenerateCreateTableSql(EntityMap map, IMetadataStore metadataStore)
+    // {
+    //     var columns = new List<string>();
+    //     var processedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    //     var foreignKeys = new HashSet<string>();
+
+    //     if (map.InheritanceStrategy is TablePerHierarchyStrategy)
+    //     {
+    //         var rootMap = map.RootMap;
+    //         var allMapsInHierarchy = GetAllMapsInTPHHierarchy(rootMap, metadataStore);
+
+    //         foreach (var hierarchyMap in allMapsInHierarchy)
+    //         {
+    //             foreach (var prop in hierarchyMap.ScalarProperties)
+    //             {
+    //                 if (processedColumns.Add(prop.ColumnName!))
+    //                 {
+    //                     var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+    //                     if (string.Equals(prop.ColumnName, rootMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
+    //                     {
+    //                         columnDef += " PRIMARY KEY";
+    //                         if (rootMap.HasAutoIncrementKey)
+    //                         {
+    //                             columnDef += " AUTOINCREMENT";
+    //                         }
+    //                     }
+
+    //                     columns.Add(columnDef);
+    //                 }
+    //             }
+    //         }
+
+    //         if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
+    //         {
+    //             if (processedColumns.Add(tphStrategy.DiscriminatorColumn))
+    //             {
+    //                 columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
+    //             }
+    //         }
+
+    //         foreach (var hierarchyMap in allMapsInHierarchy)
+    //         {
+    //             foreach (var nav in hierarchyMap.NavigationProperties)
+    //             {
+    //                 if (!nav.IsCollection && nav.ForeignKeyName != null && nav.TargetType != null)
+    //                 {
+    //                     var fkProp = hierarchyMap.ScalarProperties
+    //                         .FirstOrDefault(p => p.PropertyInfo.Name == nav.ForeignKeyName);
+
+    //                     if (fkProp != null && fkProp.ColumnName != null)
+    //                     {
+    //                         var targetMap = metadataStore.GetMap(nav.TargetType);
+
+    //                         var targetTableName = targetMap.TableName;
+    //                         var targetKeyName = targetMap.KeyProperty.ColumnName;
+    //                         if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
+    //                         {
+    //                             targetTableName = targetMap.RootMap.TableName;
+    //                             targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
+    //                         }
+
+    //                         foreignKeys.Add(
+    //                             $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
+    //                     }
+    //                 }
+    //             }
+    //         }
+
+    //         columns.AddRange(foreignKeys);
+
+    //         return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
+    //     }
+    //     else if (map.InheritanceStrategy is TablePerTypeStrategy)
+    //     {
+    //         if (map.BaseMap == null)
+    //         {
+    //             foreach (var prop in map.ScalarProperties)
+    //             {
+    //                 var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+    //                 if (prop == map.KeyProperty)
+    //                 {
+    //                     columnDef += " PRIMARY KEY";
+    //                     if (map.HasAutoIncrementKey)
+    //                     {
+    //                         columnDef += " AUTOINCREMENT";
+    //                     }
+    //                 }
+
+    //                 columns.Add(columnDef);
+    //             }
+    //         }
+    //         else
+    //         {
+    //             foreach (var prop in map.ScalarProperties)
+    //             {
+    //                 var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp =>
+    //                     string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
+
+    //                 if (!isInheritedColumn)
+    //                 {
+    //                     columns.Add($"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}");
+    //                 }
+    //                 else if (string.Equals(prop.ColumnName, map.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
+    //                 {
+    //                     columns.Add($"\"{prop.ColumnName}\" INTEGER PRIMARY KEY");
+    //                 }
+    //             }
+
+    //             columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
+    //         }
+
+    //         foreach (var fkProp in map.ScalarProperties.Where(p => p.ForeignKeyName != null))
+    //         {
+    //             var navProp = map.NavigationProperties
+    //                 .FirstOrDefault(n => n.PropertyInfo.Name == fkProp.ForeignKeyName);
+
+    //             if (navProp?.TargetType != null)
+    //             {
+    //                 var targetMap = metadataStore.GetMap(navProp.TargetType);
+    //                 var targetTableName = targetMap.TableName;
+    //                 var targetKeyName = targetMap.KeyProperty.ColumnName;
+    //                 if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
+    //                 {
+    //                     targetTableName = targetMap.RootMap.TableName;
+    //                     targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
+    //                 }
+
+    //                 foreignKeys.Add($"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
+    //             }
+    //         }
+
+    //         columns.AddRange(foreignKeys);
+
+    //         return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+    //     }
+    //     else
+    //     {
+    //         foreach (var prop in map.ScalarProperties)
+    //         {
+    //             var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
+
+    //             if (prop == map.KeyProperty)
+    //             {
+    //                 columnDef += " PRIMARY KEY";
+    //                 if (map.HasAutoIncrementKey)
+    //                 {
+    //                     columnDef += " AUTOINCREMENT";
+    //                 }
+    //             }
+
+    //             columns.Add(columnDef);
+    //         }
+
+    //         foreach (var fkProp in map.ScalarProperties.Where(p => p.ForeignKeyName != null))
+    //         {
+    //             var navProp = map.NavigationProperties
+    //                 .FirstOrDefault(n => n.PropertyInfo.Name == fkProp.ForeignKeyName);
+
+    //             Type? targetType = null;
+
+    //             if (navProp != null)
+    //             {
+    //                 targetType = navProp.TargetType;
+    //             }
+    //             else 
+    //             {
+    //                 var propInfo = map.EntityType.GetProperty(fkProp.ForeignKeyName);
+    //                 if (propInfo != null)
+    //                 {
+    //                     targetType = propInfo.PropertyType;
+    //                 }
+    //             }
+
+    //             if (targetType != null && fkProp.ColumnName != null)
+    //             {
+    //                 var targetMap = metadataStore.GetMap(targetType);
+
+    //                 var targetTableName = targetMap.TableName;
+    //                 var targetKeyName = targetMap.KeyProperty.ColumnName;
+    //                 if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
+    //                 {
+    //                     targetTableName = targetMap.RootMap.TableName;
+    //                     targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
+    //                 }
+
+    //                 foreignKeys.Add(
+    //                     $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
+    //             }
+    //         }
+
+    //         columns.AddRange(foreignKeys);
+
+    //         return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+    //     }
+    // }
+
     private string GenerateCreateTableSql(EntityMap map, IMetadataStore metadataStore)
     {
         var columns = new List<string>();
         var processedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var foreignKeys = new HashSet<string>();
+        var foreignKeyDefs = new HashSet<string>();
 
+        // --- 1. TPH (Table Per Hierarchy) ---
         if (map.InheritanceStrategy is TablePerHierarchyStrategy)
         {
             var rootMap = map.RootMap;
             var allMapsInHierarchy = GetAllMapsInTPHHierarchy(rootMap, metadataStore);
 
+            // A. Kolumny
             foreach (var hierarchyMap in allMapsInHierarchy)
             {
                 foreach (var prop in hierarchyMap.ScalarProperties)
@@ -443,21 +645,17 @@ public class DatabaseFacade
                     if (processedColumns.Add(prop.ColumnName!))
                     {
                         var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
-
                         if (string.Equals(prop.ColumnName, rootMap.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
                         {
                             columnDef += " PRIMARY KEY";
-                            if (rootMap.HasAutoIncrementKey)
-                            {
-                                columnDef += " AUTOINCREMENT";
-                            }
+                            if (rootMap.HasAutoIncrementKey) columnDef += " AUTOINCREMENT";
                         }
-
                         columns.Add(columnDef);
                     }
                 }
             }
 
+            // B. Dyskryminator
             if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
             {
                 if (processedColumns.Add(tphStrategy.DiscriminatorColumn))
@@ -465,161 +663,109 @@ public class DatabaseFacade
                     columns.Add($"\"{tphStrategy.DiscriminatorColumn}\" TEXT NOT NULL");
                 }
             }
-
+            
+            // C. FK dla całej hierarchii
             foreach (var hierarchyMap in allMapsInHierarchy)
             {
-                foreach (var nav in hierarchyMap.NavigationProperties)
-                {
-                    if (!nav.IsCollection && nav.ForeignKeyName != null && nav.TargetType != null)
-                    {
-                        var fkProp = hierarchyMap.ScalarProperties
-                            .FirstOrDefault(p => p.PropertyInfo.Name == nav.ForeignKeyName);
-
-                        if (fkProp != null && fkProp.ColumnName != null)
-                        {
-                            var targetMap = metadataStore.GetMap(nav.TargetType);
-
-                            var targetTableName = targetMap.TableName;
-                            var targetKeyName = targetMap.KeyProperty.ColumnName;
-                            if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
-                            {
-                                targetTableName = targetMap.RootMap.TableName;
-                                targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
-                            }
-
-                            foreignKeys.Add(
-                                $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
-                        }
-                    }
-                }
+                AddForeignKeys(hierarchyMap, metadataStore, foreignKeyDefs);
             }
-
-            columns.AddRange(foreignKeys);
-
+            
+            columns.AddRange(foreignKeyDefs);
             return $"CREATE TABLE IF NOT EXISTS \"{rootMap.TableName}\" ({string.Join(", ", columns)})";
         }
+        // --- 2. TPT (Table Per Type) ---
         else if (map.InheritanceStrategy is TablePerTypeStrategy)
         {
-            if (map.BaseMap == null)
+            if (map.BaseMap == null) // Root
             {
                 foreach (var prop in map.ScalarProperties)
                 {
                     var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
-
                     if (prop == map.KeyProperty)
                     {
                         columnDef += " PRIMARY KEY";
-                        if (map.HasAutoIncrementKey)
-                        {
-                            columnDef += " AUTOINCREMENT";
-                        }
+                        if (map.HasAutoIncrementKey) columnDef += " AUTOINCREMENT";
                     }
-
+                    processedColumns.Add(prop.ColumnName!);
                     columns.Add(columnDef);
                 }
             }
-            else
+            else // Child
             {
                 foreach (var prop in map.ScalarProperties)
                 {
-                    var isInheritedColumn = map.BaseMap.ScalarProperties.Any(bp =>
-                        string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
-
-                    if (!isInheritedColumn)
+                    var isInherited = map.BaseMap.ScalarProperties.Any(bp => string.Equals(bp.ColumnName, prop.ColumnName, StringComparison.OrdinalIgnoreCase));
+                    if (!isInherited)
                     {
+                        processedColumns.Add(prop.ColumnName!);
                         columns.Add($"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}");
                     }
                     else if (string.Equals(prop.ColumnName, map.KeyProperty.ColumnName, StringComparison.OrdinalIgnoreCase))
                     {
                         columns.Add($"\"{prop.ColumnName}\" INTEGER PRIMARY KEY");
+                        // FK do rodzica
+                        foreignKeyDefs.Add($"FOREIGN KEY (\"{prop.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
                     }
                 }
-
-                columns.Add($"FOREIGN KEY (\"{map.KeyProperty.ColumnName}\") REFERENCES \"{map.BaseMap.TableName}\"(\"{map.BaseMap.KeyProperty.ColumnName}\")");
             }
-
-            foreach (var fkProp in map.ScalarProperties.Where(p => p.ForeignKeyName != null))
-            {
-                var navProp = map.NavigationProperties
-                    .FirstOrDefault(n => n.PropertyInfo.Name == fkProp.ForeignKeyName);
-
-                if (navProp?.TargetType != null)
-                {
-                    var targetMap = metadataStore.GetMap(navProp.TargetType);
-                    var targetTableName = targetMap.TableName;
-                    var targetKeyName = targetMap.KeyProperty.ColumnName;
-                    if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
-                    {
-                        targetTableName = targetMap.RootMap.TableName;
-                        targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
-                    }
-
-                    foreignKeys.Add($"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
-                }
-            }
-
-            columns.AddRange(foreignKeys);
-
+            
+            AddForeignKeys(map, metadataStore, foreignKeyDefs);
+            
+            columns.AddRange(foreignKeyDefs);
             return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
         }
+        // --- 3. TPC / Standard ---
         else
         {
             foreach (var prop in map.ScalarProperties)
             {
                 var columnDef = $"\"{prop.ColumnName}\" {GetSqliteType(prop.PropertyType)}";
-
                 if (prop == map.KeyProperty)
                 {
                     columnDef += " PRIMARY KEY";
-                    if (map.HasAutoIncrementKey)
-                    {
-                        columnDef += " AUTOINCREMENT";
-                    }
+                    if (map.HasAutoIncrementKey) columnDef += " AUTOINCREMENT";
                 }
-
                 columns.Add(columnDef);
             }
 
-            foreach (var fkProp in map.ScalarProperties.Where(p => p.ForeignKeyName != null))
+            AddForeignKeys(map, metadataStore, foreignKeyDefs);
+
+            columns.AddRange(foreignKeyDefs);
+            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
+        }
+    }
+
+    // --- POPRAWIONA Metoda Pomocnicza ---
+    private void AddForeignKeys(EntityMap map, IMetadataStore metadataStore, HashSet<string> foreignKeyDefs)
+    {
+        // Iterujemy po NavigationProperties, bo to one mają atrybut [ForeignKey] w Twoim modelu
+        foreach (var nav in map.NavigationProperties)
+        {
+            // Jeśli nawigacja ma zdefiniowany klucz obcy (np. "TeacherId") i nie jest kolekcją (1:N, nie N:M)
+            if (!string.IsNullOrEmpty(nav.ForeignKeyName) && !nav.IsCollection)
             {
-                var navProp = map.NavigationProperties
-                    .FirstOrDefault(n => n.PropertyInfo.Name == fkProp.ForeignKeyName);
+                // Znajdź właściwość skalarną odpowiadającą kluczowi (np. prop int TeacherId)
+                var fkProp = map.ScalarProperties.FirstOrDefault(p => p.PropertyInfo.Name == nav.ForeignKeyName);
 
-                Type? targetType = null;
-
-                if (navProp != null)
+                if (fkProp != null && fkProp.ColumnName != null && nav.TargetType != null)
                 {
-                    targetType = navProp.TargetType;
-                }
-                else 
-                {
-                    var propInfo = map.EntityType.GetProperty(fkProp.ForeignKeyName);
-                    if (propInfo != null)
-                    {
-                        targetType = propInfo.PropertyType;
-                    }
-                }
-
-                if (targetType != null && fkProp.ColumnName != null)
-                {
-                    var targetMap = metadataStore.GetMap(targetType);
-
+                    var targetMap = metadataStore.GetMap(nav.TargetType);
+                    
+                    // Ustal nazwę tabeli docelowej (obsługa TPH - targetem jest Root Table)
                     var targetTableName = targetMap.TableName;
                     var targetKeyName = targetMap.KeyProperty.ColumnName;
+                    
                     if (targetMap.InheritanceStrategy is TablePerHierarchyStrategy)
                     {
                         targetTableName = targetMap.RootMap.TableName;
                         targetKeyName = targetMap.RootMap.KeyProperty.ColumnName;
                     }
 
-                    foreignKeys.Add(
+                    // Generuj SQL
+                    foreignKeyDefs.Add(
                         $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")");
                 }
             }
-
-            columns.AddRange(foreignKeys);
-
-            return $"CREATE TABLE IF NOT EXISTS \"{map.TableName}\" ({string.Join(", ", columns)})";
         }
     }
 
