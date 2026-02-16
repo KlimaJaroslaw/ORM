@@ -108,6 +108,19 @@ public class DbContext : IDisposable
 
             var entity = (T)materializer.Materialize(reader, ordinals);
 
+            // ✅ POPRAWKA: Po materializacji sprawdź ponownie czy encja nie jest już tracked
+            // (może być tracked jako inny typ w hierarchii dziedziczenia)
+            var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(entity);
+            if (keyValue != null)
+            {
+                var actualType = entity.GetType();
+                var tracked = ChangeTracker.FindTracked(actualType, keyValue) as T;
+                if (tracked != null)
+                {
+                    return tracked;
+                }
+            }
+
             ChangeTracker.Track(entity, EntityState.Unchanged);
             return entity;
         }
