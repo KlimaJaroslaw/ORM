@@ -51,7 +51,7 @@ namespace ORM_v1.Mapping
             if (baseMap != null)
             {
                 // --- Jesteśmy DZIECKIEM ---
-                // ✅ Strategia dziedziczenia MUSI być zgodna z root/parent!
+                //   Strategia dziedziczenia MUSI być zgodna z root/parent!
                 
                 if (strategyAttr != null)
                 {

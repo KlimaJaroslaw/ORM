@@ -108,7 +108,7 @@ public static class QueryableExtensions
             new IncludeInfo(propertyName, navigationPropertyPath)
         };
 
-        // ✅ Przekaż predicate z source!
+        //   Przekaż predicate z source!
         return new IncludableQueryable<TEntity, TProperty2>(source, source.Context, includes, source.Predicate);
     }
 
@@ -138,7 +138,7 @@ public static class QueryableExtensions
             new IncludeInfo(propertyName, navigationPropertyPath, fullPath)
         };
 
-        // ✅ Przekaż predicate z source!
+        //   Przekaż predicate z source!
         return new IncludableQueryable<TEntity, TProperty>(source, source.Context, includes, source.Predicate);
     }
 
@@ -168,7 +168,7 @@ public static class QueryableExtensions
             new IncludeInfo(propertyName, navigationPropertyPath, fullPath)
         };
 
-        // ✅ Przekaż predicate z source!
+        //   Przekaż predicate z source!
         return new IncludableQueryable<TEntity, TProperty>(source, source.Context, includes, source.Predicate);
     }
 
@@ -202,7 +202,7 @@ public static class QueryableExtensions
         var metadataStore = context.GetConfiguration().MetadataStore;
         var entityMap = metadataStore.GetMap<TEntity>();
 
-        // ✅ Użyj SqlGenerator aby poznać poprawny alias (tStudent zamiast student)
+        //   Użyj SqlGenerator aby poznać poprawny alias (tStudent zamiast student)
         var sqlGenerator = new SqliteSqlGenerator();
         var tableAlias = sqlGenerator.GetTableAlias(entityMap, metadataStore);
 
@@ -257,7 +257,7 @@ public static class QueryableExtensions
             var tempEntity = (TEntity)materializer.Materialize(reader, ordinals);
             var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(tempEntity)!;
 
-            // ✅ Sprawdź Identity Map
+            //   Sprawdź Identity Map
             var trackedEntity = context.ChangeTracker.FindTracked(typeof(TEntity), keyValue) as TEntity;
             
             var entity = trackedEntity ?? tempEntity;
@@ -358,7 +358,7 @@ public static class QueryableExtensions
     private static List<TEntity> GetAllEntitiesFromContext<TEntity>(DbContext context)
         where TEntity : class
     {
-        // ✅ SetInternal już obsługuje Identity Map poprawnie
+        //   SetInternal już obsługuje Identity Map poprawnie
         return context.SetInternal<TEntity>().ToList();
     }
 
@@ -373,7 +373,7 @@ public static class QueryableExtensions
     {
         Console.WriteLine($"[DEBUG] BuildQueryModelWithIncludes: entityMap={entityMap.EntityType.Name}, includes.Count={includes.Count}");
 
-        // ✅ Użyj SqlGenerator aby poznać poprawny alias (tTeacher zamiast teacher_main)
+        //   Użyj SqlGenerator aby poznać poprawny alias (tTeacher zamiast teacher_main)
         var sqlGenerator = new SqliteSqlGenerator();
         var primaryEntityAlias = sqlGenerator.GetTableAlias(entityMap, metadataStore);
 
@@ -385,7 +385,7 @@ public static class QueryableExtensions
 
         int aliasIndex = 0;
 
-        // ✅ Obsługa zagnieżdżonych includes: dla każdego include przetwarzamy tylko pierwszy segment
+        //   Obsługa zagnieżdżonych includes: dla każdego include przetwarzamy tylko pierwszy segment
         // Zagnieżdżone ThenInclude są grupowane razem
         var processedPaths = new HashSet<string>();
 
@@ -512,10 +512,10 @@ public static class QueryableExtensions
             NavigationProperty = navProp,
             Join = joinClause,
             TableAlias = joinAlias,
-            IncludeInfo = currentInclude  // ✅ Dodaj IncludeInfo dla wsparcia ThenInclude
+            IncludeInfo = currentInclude  //   Dodaj IncludeInfo dla wsparcia ThenInclude
         });
 
-        // ✅ Rekurencyjnie przetwarzaj zagnieżdżone ThenInclude
+        //   Rekurencyjnie przetwarzaj zagnieżdżone ThenInclude
         // Znajdź wszystkie includes które są dziećmi obecnego (zaczynają się od currentPath + ".")
         var childIncludes = allIncludes.Where(inc =>
             inc.IsNested &&
@@ -739,7 +739,7 @@ public static class QueryableExtensions
     /// <summary>
     /// Pobiera ordinals (indeksy kolumn) dla danego EntityMap z DataReader.
     /// Używa aliasów kolumn (tableAlias_columnName) aby uniknąć konfliktów w JOIN.
-    /// ✅ OBSŁUGUJE TPT: szuka kolumn w odpowiednich tabelach hierarchii!
+    ///   OBSŁUGUJE TPT: szuka kolumn w odpowiednich tabelach hierarchii!
     /// </summary>
     private static int[] GetOrdinals(IDataReader reader, EntityMap map, string? tableAlias)
     {
@@ -761,7 +761,7 @@ public static class QueryableExtensions
             if (columnName == null)
                 continue;
 
-            // ✅ Dla TPT: znajdź z której tabeli pochodzi ta kolumna
+            //   Dla TPT: znajdź z której tabeli pochodzi ta kolumna
             string searchName;
             string fallbackSearchName = columnName;
             
@@ -805,12 +805,12 @@ public static class QueryableExtensions
                 if (string.Equals(fieldName, searchName, StringComparison.OrdinalIgnoreCase))
                 {
                     ordinals[i] = j;
-                    Console.WriteLine($"  ✅ FOUND at ordinal {j}");
+                    Console.WriteLine($"    FOUND at ordinal {j}");
                     break;
                 }
             }
             
-            // ✅ FALLBACK: If aliased column not found and we have a table alias, 
+            //   FALLBACK: If aliased column not found and we have a table alias, 
             // try searching for the unaliased column name (for queries without column aliases)
             if (ordinals[i] == -1 && !string.IsNullOrEmpty(tableAlias))
             {
@@ -822,7 +822,7 @@ public static class QueryableExtensions
                     if (string.Equals(fieldName, fallbackSearchName, StringComparison.OrdinalIgnoreCase))
                     {
                         ordinals[i] = j;
-                        Console.WriteLine($"  ✅ FOUND (fallback) at ordinal {j}");
+                        Console.WriteLine($"    FOUND (fallback) at ordinal {j}");
                         break;
                     }
                 }

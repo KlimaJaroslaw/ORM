@@ -40,7 +40,7 @@ namespace ORM_v1.Mapping
             if (record == null) throw new ArgumentNullException(nameof(record));
             if (ordinals == null) throw new ArgumentNullException(nameof(ordinals));
 
-            // ✅ OBSŁUGA TPH: używa Discriminatora
+            //   OBSŁUGA TPH: używa Discriminatora
             if (_rootMap.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
             {
                 int discriminatorOrdinal = GetDiscriminatorOrdinal(record, tphStrategy.DiscriminatorColumn);
@@ -55,7 +55,7 @@ namespace ORM_v1.Mapping
                     }
                 }
             }
-            // ✅ OBSŁUGA TPC: używa syntetycznego Discriminatora
+            //   OBSŁUGA TPC: używa syntetycznego Discriminatora
             else if (_rootMap.InheritanceStrategy is TablePerConcreteClassStrategy)
             {
                 int discriminatorOrdinal = GetDiscriminatorOrdinal(record, "Discriminator");
@@ -76,7 +76,7 @@ namespace ORM_v1.Mapping
                     }
                 }
             }
-            // ✅ NOWA OBSŁUGA TPT: wykryj typ na podstawie NULL-i w kolumnach dzieci
+            //   NOWA OBSŁUGA TPT: wykryj typ na podstawie NULL-i w kolumnach dzieci
             else if (_rootMap.InheritanceStrategy is TablePerTypeStrategy)
             {
                 // Wykryj najbardziej konkretny typ pochodny na podstawie niepustych kolumn
@@ -215,7 +215,7 @@ namespace ORM_v1.Mapping
                     $"Unknown type name '{typeName}' in TPC discriminator for root entity '{_rootMap.EntityType.Name}'.");
             }
 
-            // ✅ POPRAWKA: Przelicz ordinals dla derived map i zmaterializuj BEZPOŚREDNIO
+            //   POPRAWKA: Przelicz ordinals dla derived map i zmaterializuj BEZPOŚREDNIO
             var derivedOrdinals = GetOrdinalsForMap(record, derivedMap);
             
             // NIE wywołuj Materialize() bo to prowadzi do nieskończonej rekurencji!
@@ -380,7 +380,7 @@ namespace ORM_v1.Mapping
         {
             var targetType = prop.PropertyType;
             
-            // ✅ Obsługa Nullable<T>
+            //   Obsługa Nullable<T>
             var underlyingType = Nullable.GetUnderlyingType(targetType);
             if (underlyingType != null)
             {
@@ -388,7 +388,7 @@ namespace ORM_v1.Mapping
                 targetType = underlyingType;
             }
 
-            // ✅ Obsługa SQLite Int64 → Int32 (i innych konwersji numerycznych)
+            //   Obsługa SQLite Int64 → Int32 (i innych konwersji numerycznych)
             if (value is long longValue && (targetType == typeof(int) || targetType == typeof(int?)))
             {
                 return (int)longValue;
@@ -404,13 +404,13 @@ namespace ORM_v1.Mapping
                 return (byte)longValue3;
             }
 
-            // ✅ Obsługa Enum
+            //   Obsługa Enum
             if (targetType.IsEnum)
             {
                 return Enum.ToObject(targetType, value);
             }
 
-            // ✅ Standardowa konwersja (bez Nullable wrapper)
+            //   Standardowa konwersja (bez Nullable wrapper)
             try
             {
                 return Convert.ChangeType(value, targetType);

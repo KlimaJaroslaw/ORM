@@ -119,7 +119,7 @@ public class SqliteSqlGenerator : ISqlGenerator
 
             builder.LeftJoin(joinTable, joinAlias, condition);
 
-            // ✅ Dla TPT: dodaj INNER JOIN do tabel rodziców included entity
+            //   Dla TPT: dodaj INNER JOIN do tabel rodziców included entity
             if (join.JoinedEntity.InheritanceStrategy is TablePerTypeStrategy && join.JoinedEntity.BaseMap != null)
             {
                 AddTPTParentJoinsForInclude(builder, join.JoinedEntity, join.Alias!);
@@ -241,7 +241,7 @@ public class SqliteSqlGenerator : ISqlGenerator
             // 3. WHERE clause
             if (!string.IsNullOrEmpty(queryModel.WhereClause))
             {
-                // ✅ ZMIANA 3: Zamiast usuwać aliasy, podmieniamy alias "główny" na alias aktualnej tabeli
+                //   ZMIANA 3: Zamiast usuwać aliasy, podmieniamy alias "główny" na alias aktualnej tabeli
                 // Np. "person"."Key" -> "employees"."Key"
                 var fixedWhere = queryModel.WhereClause.Replace(
                     $"{QuoteIdentifier(queryModel.PrimaryEntityAlias)}.", 
@@ -393,7 +393,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                 context.PrimaryAlias = $"t{map.EntityType.Name}";
                 BuildTPTParentJoins(map, context);
                 
-                // ✅ DODAJ LEFT JOIN DO DZIECI (jeśli są klasy pochodne)
+                //   DODAJ LEFT JOIN DO DZIECI (jeśli są klasy pochodne)
                 // Nawet konkretna klasa może mieć dzieci w TPT!
                 if (HasDerivedTypes(map))
                 {
@@ -412,7 +412,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                 // TPT - konkretna klasa bez BaseMap (root lub standalone)
                 context.BaseTable = map.TableName;
                 
-                // ✅ SPRAWDŹ CZY MA DZIECI (Student → StudentPart)
+                //   SPRAWDŹ CZY MA DZIECI (Student → StudentPart)
                 if (HasDerivedTypes(map))
                 {
                     context.PrimaryAlias = $"t{map.EntityType.Name}";
@@ -525,7 +525,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                 JoinType = JoinType.Left
             });
 
-            // ✅ Rekurencyjnie dla kolejnych poziomów (jeśli klasa ma dalsze dzieci)
+            //   Rekurencyjnie dla kolejnych poziomów (jeśli klasa ma dalsze dzieci)
             if (HasDerivedTypes(derivedMap))
             {
                 BuildTPTChildJoins(derivedMap, context);
@@ -644,7 +644,7 @@ public class SqliteSqlGenerator : ISqlGenerator
             var joinedMap = includeJoin.Join.JoinedEntity;
             var alias = includeJoin.TableAlias;
 
-            // ✅ Sprawdź czy joined entity używa TPT (hierarchia)
+            //   Sprawdź czy joined entity używa TPT (hierarchia)
             if (joinedMap.InheritanceStrategy is TablePerTypeStrategy)
             {
                 // TPT: dodaj kolumny z hierarchii (tak jak w głównym SELECT)
@@ -712,7 +712,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                 current = current.BaseMap;
             }
             
-            // ✅ DODAJ KOLUMNY DZIECI (jeśli są)
+            //   DODAJ KOLUMNY DZIECI (jeśli są)
             if (HasDerivedTypes(map))
             {
                 AddTPTChildColumns(map, context, columns, hasIncludeJoins);
@@ -762,7 +762,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                 }
             }
 
-            // ✅ Rekurencyjnie dla kolejnych poziomów (jeśli klasa ma dalsze dzieci)
+            //   Rekurencyjnie dla kolejnych poziomów (jeśli klasa ma dalsze dzieci)
             if (HasDerivedTypes(derivedMap))
             {
                 AddTPTChildColumns(derivedMap, context, columns, hasIncludeJoins);

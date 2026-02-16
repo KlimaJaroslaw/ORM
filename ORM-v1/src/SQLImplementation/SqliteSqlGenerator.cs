@@ -55,7 +55,7 @@
 
 //        whereConditions.Add($"{keyColumnRef} = @id");
 
-//        // ✅ Użyj wspólnej metody dla TPH discriminator filtering
+//        //   Użyj wspólnej metody dla TPH discriminator filtering
 //        var tableAliasForDiscriminator = map.InheritanceStrategy is TablePerTypeStrategy ? $"t{map.EntityType.Name}" : null;
 //        var (discriminatorWhere, discriminatorParams) = BuildDiscriminatorFilter(map, metadataStore, tableAliasForDiscriminator);
 //        if (!string.IsNullOrEmpty(discriminatorWhere))
@@ -99,7 +99,7 @@
 
 //        BuildFromClauseWithInheritance(builder, map);
 
-//        // ✅ Użyj wspólnej metody dla TPH discriminator filtering
+//        //   Użyj wspólnej metody dla TPH discriminator filtering
 //        var (discriminatorWhere, parameters) = BuildDiscriminatorFilter(map, metadataStore, null);
 
 //        if (!string.IsNullOrEmpty(discriminatorWhere))
@@ -490,7 +490,7 @@
 //        var parameters = new Dictionary<string, object>(queryModel.Parameters);
 
 //        bool hasJoins = queryModel.Joins.Any();
-//        // ✅ Zawsze używaj aliasu (nawszen bez JOIN-ów)
+//        //   Zawsze używaj aliasu (nawszen bez JOIN-ów)
 //        string? primaryAlias = string.IsNullOrEmpty(queryModel.PrimaryEntityAlias)
 //            ? map.TableName.ToLowerInvariant()
 //            : queryModel.PrimaryEntityAlias;
@@ -532,12 +532,12 @@
 //            }
 //        }
 
-//        // ✅ Dodaj discriminator filtering dla TPH (jeśli nie ma własnego WHERE)
+//        //   Dodaj discriminator filtering dla TPH (jeśli nie ma własnego WHERE)
 //        var whereConditions = new List<string>();
 
 //        if (!string.IsNullOrEmpty(queryModel.WhereClause))
 //        {
-//            // ✅ Dodaj aliasy do nazw kolumn w WHERE clause
+//            //   Dodaj aliasy do nazw kolumn w WHERE clause
 //            var whereWithAlias = AddTableAliasToWhereClause(queryModel.WhereClause, primaryAlias, map);
 //            whereConditions.Add(whereWithAlias);
 //        }
@@ -649,7 +649,7 @@
 //        }
 //        else if (map.InheritanceStrategy is TablePerTypeStrategy && map.IsAbstract && _metadataStore != null)
 //        {
-//            // ✅ Dla TPT + abstrakcyjna bazowa: dodaj kolumny z klasy bazowej i wszystkich klas pochodnych
+//            //   Dla TPT + abstrakcyjna bazowa: dodaj kolumny z klasy bazowej i wszystkich klas pochodnych
 //            var baseAlias = $"t{map.EntityType.Name}";
 
 //            // Kolumny z klasy bazowej
@@ -666,7 +666,7 @@
 //        }
 //        else if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
 //        {
-//            // ✅ Dla TPH: zwróć WSZYSTKIE kolumny z hierarchii!
+//            //   Dla TPH: zwróć WSZYSTKIE kolumny z hierarchii!
 //            var rootMap = map.RootMap;
 //            var processedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -740,7 +740,7 @@
 //        }
 //        else if (map.InheritanceStrategy is TablePerTypeStrategy && map.IsAbstract && _metadataStore != null)
 //        {
-//            // ✅ Dla TPT + abstrakcyjna klasa bazowa: dodaj LEFT JOIN do wszystkich klas pochodnych
+//            //   Dla TPT + abstrakcyjna klasa bazowa: dodaj LEFT JOIN do wszystkich klas pochodnych
 //            var baseAlias = $"t{map.EntityType.Name}";
 //            builder.From($"{QuoteIdentifier(map.TableName)} AS {QuoteIdentifier(baseAlias)}");
 //            BuildLeftJoinsToDerivedTypes(builder, map, baseAlias);
@@ -870,7 +870,7 @@
 //            // Zawsze zwracaj wszystkie kolumny (SELECT ALL)
 //            var columns = new List<string>();
 
-//            // ✅ Dla TPH: użyj tej samej logiki co GetColumnsForSelect!
+//            //   Dla TPH: użyj tej samej logiki co GetColumnsForSelect!
 //            if (map.InheritanceStrategy is TablePerHierarchyStrategy tphStrategy)
 //            {
 //                var rootMap = map.RootMap;
@@ -998,7 +998,7 @@
 
 //    private string BuildJoinCondition(JoinClause join, string? primaryAlias)
 //    {
-//        // ✅ Użyj ParentAlias jeśli jest ustawiony (dla ThenInclude)
+//        //   Użyj ParentAlias jeśli jest ustawiony (dla ThenInclude)
 //        // W przeciwnym razie użyj primaryAlias (dla prostego Include)
 //        var leftAlias = join.ParentAlias ?? primaryAlias;
 

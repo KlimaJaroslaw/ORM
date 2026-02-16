@@ -98,7 +98,7 @@ public static class AutoTrackingDemo
         Console.WriteLine($"  EntityState (bez Update): {context.ChangeTracker.GetEntry(productWithCategory.Category)?.State}");
         Console.WriteLine("    Bez wywołania .Update() zmiany NIE zostaną zapisane!");
 
-        // ✅ Oznacz jako Modified używając .Update()
+        //   Oznacz jako Modified używając .Update()
         Console.WriteLine("\nWywołuję context.Categories.Update(category)...");
         context.Categories.Update(productWithCategory.Category);
         Console.WriteLine($"   EntityState (po Update): {context.ChangeTracker.GetEntry(productWithCategory.Category)?.State}");

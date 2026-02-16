@@ -126,7 +126,7 @@ internal class ExpressionToSqlConverter
             throw new InvalidOperationException($"Property '{propertyName}' not found in entity map for {_entityMap.EntityType.Name}");
         }
 
-        // ✅ POPRAWKA TPT: Znajdź właściwy alias tabeli dla tej kolumny
+        //   POPRAWKA TPT: Znajdź właściwy alias tabeli dla tej kolumny
         if (!string.IsNullOrEmpty(_tableAlias))
         {
             var correctAlias = GetTableAliasForColumn(propertyMap);
