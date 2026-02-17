@@ -224,14 +224,14 @@ public static class QueryableExtensions
         var sqlQuery = sqlGenerator.GenerateComplexSelect(entityMap, queryModel, metadataStore);
 
         // 🔍 DEBUG: Loguj wygenerowane SQL
-        Console.WriteLine("\n========== SQL QUERY (Where) ==========");
-        Console.WriteLine(sqlQuery.Sql);
-        Console.WriteLine("Parameters:");
+        //Console.WriteLine("\n========== SQL QUERY (Where) ==========");
+        //Console.WriteLine(sqlQuery.Sql);
+        //Console.WriteLine("Parameters:");
         foreach (var param in sqlQuery.Parameters)
         {
-            Console.WriteLine($"  {param.Key} = {param.Value}");
+            //Console.WriteLine($"  {param.Key} = {param.Value}");
         }
-        Console.WriteLine("=======================================\n");
+        //Console.WriteLine("=======================================\n");
 
         // Wykonaj zapytanie
         var connection = GetConnectionFromContext(context);
@@ -270,7 +270,7 @@ public static class QueryableExtensions
             entities.Add(entity);
         }
 
-        Console.WriteLine($"[DEBUG] Zwrócono {entities.Count} encji\n");
+        //Console.WriteLine($"[DEBUG] Zwrócono {entities.Count} encji\n");
 
         return entities;
     }
@@ -312,14 +312,14 @@ public static class QueryableExtensions
         var sqlQuery = sqlGenerator.GenerateComplexSelect(entityMap, queryModel, metadataStore);
 
         // 🔍 DEBUG: Loguj wygenerowane SQL
-        Console.WriteLine("\n========== SQL QUERY (Include) ==========");
-        Console.WriteLine(sqlQuery.Sql);
-        Console.WriteLine("Parameters:");
+        //Console.WriteLine("\n========== SQL QUERY (Include) ==========");
+        //Console.WriteLine(sqlQuery.Sql);
+        //Console.WriteLine("Parameters:");
         foreach (var param in sqlQuery.Parameters)
         {
-            Console.WriteLine($"  {param.Key} = {param.Value}");
+            //Console.WriteLine($"  {param.Key} = {param.Value}");
         }
-        Console.WriteLine("==========================================\n");
+        //Console.WriteLine("==========================================\n");
 
         // Wykonaj zapytanie
         var connection = GetConnectionFromContext(context);
@@ -346,7 +346,7 @@ public static class QueryableExtensions
             metadataStore,
             context);
 
-        Console.WriteLine($"[DEBUG] Zwrócono {entities.Count} encji\n");
+        //Console.WriteLine($"[DEBUG] Zwrócono {entities.Count} encji\n");
 
         return entities;
     }
@@ -371,7 +371,7 @@ public static class QueryableExtensions
         List<IncludeInfo> includes,
         IMetadataStore metadataStore)
     {
-        Console.WriteLine($"[DEBUG] BuildQueryModelWithIncludes: entityMap={entityMap.EntityType.Name}, includes.Count={includes.Count}");
+        //Console.WriteLine($"[DEBUG] BuildQueryModelWithIncludes: entityMap={entityMap.EntityType.Name}, includes.Count={includes.Count}");
 
         //   Użyj SqlGenerator aby poznać poprawny alias (tTeacher zamiast teacher_main)
         var sqlGenerator = new SqliteSqlGenerator();
@@ -391,14 +391,14 @@ public static class QueryableExtensions
 
         foreach (var include in includes)
         {
-            Console.WriteLine($"[DEBUG]   Include: {include.NavigationPropertyName}, IsNested={include.IsNested}, FullPath={include.FullPath}");
+            //Console.WriteLine($"[DEBUG]   Include: {include.NavigationPropertyName}, IsNested={include.IsNested}, FullPath={include.FullPath}");
 
             // Dla prostych includes - przetwarzamy normalnie
             // Dla zagnieżdżonych - pomijamy, bo zostaną przetworzone rekurencyjnie
             if (include.IsNested)
             {
                 // Zagnieżdżony include zostanie przetworzony jako część swojego rodzica
-                Console.WriteLine($"[DEBUG]     -> Pomijam (zagnieżdżony)");
+                //Console.WriteLine($"[DEBUG]     -> Pomijam (zagnieżdżony)");
                 continue;
             }
 
@@ -413,7 +413,7 @@ public static class QueryableExtensions
                 processedPaths);
         }
 
-        Console.WriteLine($"[DEBUG] QueryModel: Joins.Count={queryModel.Joins.Count}, IncludeJoins.Count={queryModel.IncludeJoins.Count}");
+        //Console.WriteLine($"[DEBUG] QueryModel: Joins.Count={queryModel.Joins.Count}, IncludeJoins.Count={queryModel.IncludeJoins.Count}");
 
         return queryModel;
     }
@@ -708,7 +708,7 @@ public static class QueryableExtensions
                     else
                     {
                         // Opcjonalnie: Logowanie, że wykryto mismatch typów i pominięto przypisanie
-                        Console.WriteLine($"[WARNING] Type mismatch: Cannot assign {relatedEntity.GetType().Name} to {navProp.PropertyInfo.Name} ({navProp.PropertyType.Name})");
+                        //Console.WriteLine($"[WARNING] Type mismatch: Cannot assign {relatedEntity.GetType().Name} to {navProp.PropertyInfo.Name} ({navProp.PropertyType.Name})");
                     }
                 }
             }
@@ -743,11 +743,11 @@ public static class QueryableExtensions
     /// </summary>
     private static int[] GetOrdinals(IDataReader reader, EntityMap map, string? tableAlias)
     {
-        Console.WriteLine($"[DEBUG GetOrdinals] map={map.EntityType.Name}, tableAlias={tableAlias}, FieldCount={reader.FieldCount}");
-        Console.WriteLine($"[DEBUG GetOrdinals] Reader columns:");
+        //Console.WriteLine($"[DEBUG GetOrdinals] map={map.EntityType.Name}, tableAlias={tableAlias}, FieldCount={reader.FieldCount}");
+        //Console.WriteLine($"[DEBUG GetOrdinals] Reader columns:");
         for (int j = 0; j < reader.FieldCount; j++)
         {
-            Console.WriteLine($"  [{j}] '{reader.GetName(j)}'");
+            //Console.WriteLine($"  [{j}] '{reader.GetName(j)}'");
         }
         
         var ordinals = new int[map.ScalarProperties.Count];
@@ -796,7 +796,7 @@ public static class QueryableExtensions
             // Ostateczny fallback: prosta nazwa kolumny (bez aliasu)
             searchNames.Add(columnName);
 
-            Console.WriteLine($"[DEBUG GetOrdinals] Property '{prop.PropertyInfo.Name}' (column '{columnName}')   searching: {string.Join(", ", searchNames)}");
+            //Console.WriteLine($"[DEBUG GetOrdinals] Property '{prop.PropertyInfo.Name}' (column '{columnName}')   searching: {string.Join(", ", searchNames)}");
 
             // Przeszukaj wszystkie warianty nazw
             foreach (var searchName in searchNames)
@@ -808,7 +808,7 @@ public static class QueryableExtensions
                     if (string.Equals(fieldName, searchName, StringComparison.OrdinalIgnoreCase))
                     {
                         ordinals[i] = j;
-                        Console.WriteLine($"    FOUND '{searchName}' at ordinal {j}");
+                        //Console.WriteLine($"    FOUND '{searchName}' at ordinal {j}");
                         break;
                     }
                 }
@@ -819,7 +819,7 @@ public static class QueryableExtensions
             
             if (ordinals[i] == -1)
             {
-                Console.WriteLine($"    NOT FOUND! Tried: {string.Join(", ", searchNames)}");
+                //Console.WriteLine($"    NOT FOUND! Tried: {string.Join(", ", searchNames)}");
             }
         }
 
