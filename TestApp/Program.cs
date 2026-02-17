@@ -296,8 +296,8 @@ class Program
                 context.SaveChanges();
 
                 Console.WriteLine($"|  {productToUpdate.Name,-44}");
-                Console.WriteLine($"|   Stock: {oldStock} → {productToUpdate.Stock}                                    ");
-                Console.WriteLine($"|   Cena: {oldPrice:C} → {productToUpdate.Price:C}                    ");
+                Console.WriteLine($"|   Stock: {oldStock}   {productToUpdate.Stock}                                    ");
+                Console.WriteLine($"|   Cena: {oldPrice:C}   {productToUpdate.Price:C}                    ");
             }
             Console.WriteLine("|--------------------------------------------------------\n");
 
@@ -312,7 +312,7 @@ class Program
                 context.SaveChanges();
 
                 Console.WriteLine($"|  {customerToUpdate.FullName,-44}");
-                Console.WriteLine($"|   Status: {oldStatus} → {customerToUpdate.Status}");
+                Console.WriteLine($"|   Status: {oldStatus}   {customerToUpdate.Status}");
             }
             Console.WriteLine("|--------------------------------------------------------\n");
 

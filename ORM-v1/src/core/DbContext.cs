@@ -109,7 +109,7 @@ public class DbContext : IDisposable
 
             var entity = (T)materializer.Materialize(reader, ordinals);
 
-            // ✅ POPRAWKA: Po materializacji sprawdź ponownie czy encja nie jest już tracked
+            //   POPRAWKA: Po materializacji sprawdź ponownie czy encja nie jest już tracked
             // (może być tracked jako inny typ w hierarchii dziedziczenia)
             var keyValue = entityMap.KeyProperty.PropertyInfo.GetValue(entity);
             if (keyValue != null)
@@ -750,34 +750,25 @@ public class DatabaseFacade
     // --- POPRAWIONA Metoda Pomocnicza ---
     private void AddForeignKeys(EntityMap map, IMetadataStore metadataStore, HashSet<string> foreignKeyDefs)
     {
-        Console.WriteLine($"[DEBUG AddForeignKeys] Dla tabeli {map.TableName}:");
-        Console.WriteLine($"  NavigationProperties count: {map.NavigationProperties.Count}");
-        
         // Iterujemy po NavigationProperties, bo to one mają atrybut [ForeignKey] w Twoim modelu
         foreach (var nav in map.NavigationProperties)
         {
-            Console.WriteLine($"  NavProp: {nav.PropertyInfo.Name}, ForeignKeyName: {nav.ForeignKeyName}, IsCollection: {nav.IsCollection}");
-            
             // Jeśli nawigacja ma zdefiniowany klucz obcy (np. "EmployeeId") i nie jest kolekcją (1:N, nie N:M)
             if (!string.IsNullOrEmpty(nav.ForeignKeyName) && !nav.IsCollection)
             {
                 // Znajdź właściwość skalarną odpowiadającą kluczowi (np. prop int EmployeeId)
                 var fkProp = map.ScalarProperties.FirstOrDefault(p => p.PropertyInfo.Name == nav.ForeignKeyName);
 
-                Console.WriteLine($"    FkProp found: {fkProp != null}, ColumnName: {fkProp?.ColumnName}, TargetType: {nav.TargetType?.Name}");
-
                 if (fkProp != null && fkProp.ColumnName != null && nav.TargetType != null)
                 {
-                    // ✅ POPRAWKA TPT: Sprawdź czy FK jest zdefiniowany w BIEŻĄCEJ klasie, nie dziedziczony
+                    //   POPRAWKA TPT: Sprawdź czy FK jest zdefiniowany w BIEŻĄCEJ klasie, nie dziedziczony
                     if (map.InheritanceStrategy is TablePerTypeStrategy && map.BaseMap != null)
                     {
                         // Sprawdź czy właściwość FK jest zdefiniowana w tej klasie (nie w rodzicu)
                         var isDeclaredInThisClass = fkProp.PropertyInfo.DeclaringType == map.EntityType;
                         
                         if (!isDeclaredInThisClass)
-                        // Sprawdź czy właściwość FK jest zdefiniowana w tej klasie (nie w rodzicu)
                         {
-                            Console.WriteLine($"    Skipping FK - property declared in base class {fkProp.PropertyInfo.DeclaringType?.Name}");
                             continue; // FK zostanie dodany w tabeli rodzica
                         }
                     }
@@ -795,20 +786,17 @@ public class DatabaseFacade
                     }
                     else if (targetMap.InheritanceStrategy is TablePerConcreteClassStrategy)
                     {
-                        // ✅ POPRAWKA TPC: Target tabela to konkretna tabela (np. Employees, Students)
+                        //   POPRAWKA TPC: Target tabela to konkretna tabela (np. Employees, Students)
                         targetTableName = targetMap.TableName;
                         targetKeyName = targetMap.KeyProperty.ColumnName;
                     }
 
-                    // Generuj SQL
-                    var fkDef = $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\")";
-                    Console.WriteLine($"    Generating FK: {fkDef}");
+                    //   Generuj SQL z ON DELETE CASCADE
+                    var fkDef = $"FOREIGN KEY (\"{fkProp.ColumnName}\") REFERENCES \"{targetTableName}\"(\"{targetKeyName}\") ON DELETE CASCADE";
                     foreignKeyDefs.Add(fkDef);
                 }
             }
         }
-        
-        Console.WriteLine($"  Total FK definitions: {foreignKeyDefs.Count}");
     }
 
     private List<EntityMap> GetAllMapsInTPHHierarchy(EntityMap rootMap, IMetadataStore metadataStore)

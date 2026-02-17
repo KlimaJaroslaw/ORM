@@ -80,60 +80,63 @@ internal class ExpressionToSqlConverter
 
     private string VisitMember(MemberExpression node)
     {
-        // CASE 1: Sprawdź czy to CLOSURE (zmienna lokalna przechwycona przez lambda)
-        if (node.Expression is ConstantExpression constantExpr)
+        // CASE 1: Sprawdź czy to właściwość PARAMETRU LAMBDA (np. x.StudentId w x => x.StudentId == 3)
+        // Parametr lambda ma Expression typu ParameterExpression
+        if (node.Expression is ParameterExpression)
         {
-            // To jest dostęp do zmiennej lokalnej (closure field)
-            // Przykład: teacherId w "c => c.TeacherId == teacherId"
-            
-            // Ewaluuj wartość (wyciągnij wartość z closure class)
-            var container = constantExpr.Value;
-            var member = node.Member;
-            
-            object? value = null;
-            if (member is System.Reflection.FieldInfo field)
+            // To jest właściwość encji (np. x.StudentId)
+            var propertyName = node.Member.Name;
+
+            // Znajdź PropertyMap dla tej property
+            var propertyMap = _entityMap.ScalarProperties
+                .FirstOrDefault(p => p.PropertyInfo.Name == propertyName);
+
+            if (propertyMap == null)
             {
-                value = field.GetValue(container);
+                // Może to jest navigation property lub klucz
+                propertyMap = _entityMap.KeyProperty.PropertyInfo.Name == propertyName
+                    ? _entityMap.KeyProperty
+                    : null;
             }
-            else if (member is System.Reflection.PropertyInfo property)
+
+            if (propertyMap == null)
             {
-                value = property.GetValue(container);
+                throw new InvalidOperationException($"Property '{propertyName}' not found in entity map for {_entityMap.EntityType.Name}");
             }
+
+            // Zwróć nazwę kolumny z odpowiednim aliasem
+            if (!string.IsNullOrEmpty(_tableAlias))
+            {
+                var correctAlias = GetTableAliasForColumn(propertyMap);
+                return $"\"{correctAlias}\".\"{propertyMap.ColumnName}\"";
+            }
+
+            return $"\"{propertyMap.ColumnName}\"";
+        }
+        
+        // CASE 2: To jest dostęp do ZMIENNEJ LOKALNEJ lub jej właściwości
+        // (np. student3.Id, teacherId, context.SomeValue)
+        // Ewaluujemy wartość i dodajemy jako parametr SQL
+        
+        try
+        {
+            // Kompiluj i wykonaj expression aby otrzymać wartość
+            var lambda = Expression.Lambda<Func<object>>(
+                Expression.Convert(node, typeof(object)));
+            var compiled = lambda.Compile();
+            var value = compiled();
             
             // Dodaj jako parametr SQL
             var paramName = $"@p{_parameterIndex++}";
             _parameters[paramName] = value ?? DBNull.Value;
             return paramName;
         }
-        
-        // CASE 2: To jest właściwość encji (np. c.TeacherId)
-        var propertyName = node.Member.Name;
-
-        // Znajdź PropertyMap dla tej property
-        var propertyMap = _entityMap.ScalarProperties
-            .FirstOrDefault(p => p.PropertyInfo.Name == propertyName);
-
-        if (propertyMap == null)
+        catch (Exception ex)
         {
-            // Może to jest navigation property lub klucz
-            propertyMap = _entityMap.KeyProperty.PropertyInfo.Name == propertyName
-                ? _entityMap.KeyProperty
-                : null;
+            throw new InvalidOperationException(
+                $"Failed to evaluate member expression '{node}'. " +
+                $"Make sure you're comparing entity properties with constants or local variables.", ex);
         }
-
-        if (propertyMap == null)
-        {
-            throw new InvalidOperationException($"Property '{propertyName}' not found in entity map for {_entityMap.EntityType.Name}");
-        }
-
-        //   POPRAWKA TPT: Znajdź właściwy alias tabeli dla tej kolumny
-        if (!string.IsNullOrEmpty(_tableAlias))
-        {
-            var correctAlias = GetTableAliasForColumn(propertyMap);
-            return $"\"{correctAlias}\".\"{propertyMap.ColumnName}\"";
-        }
-
-        return $"\"{propertyMap.ColumnName}\"";
     }
 
     /// <summary>

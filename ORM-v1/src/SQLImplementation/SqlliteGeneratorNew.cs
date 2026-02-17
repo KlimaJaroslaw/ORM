@@ -73,7 +73,7 @@ public class SqliteSqlGenerator : ISqlGenerator
 
     /// <summary>
     /// Główna metoda generująca SELECT - obsługuje wszystkie strategie dziedziczenia.
-    /// Pipeline: 1. Analiza strategii → 2. SELECT columns → 3. FROM + JOINs → 4. WHERE → 5. ORDER BY/LIMIT
+    /// Pipeline: 1. Analiza strategii   2. SELECT columns   3. FROM + JOINs   4. WHERE   5. ORDER BY/LIMIT
     /// </summary>
     public SqlQuery GenerateComplexSelect(EntityMap map, QueryModel queryModel, IMetadataStore metadataStore)
     {
@@ -119,10 +119,10 @@ public class SqliteSqlGenerator : ISqlGenerator
 
             builder.LeftJoin(joinTable, joinAlias, condition);
 
-            //   Dla TPT: dodaj INNER JOIN do tabel rodziców included entity
+            //   Dla TPT: dodaj LEFT JOIN do tabel rodziców included entity (nie INNER JOIN!)
             if (join.JoinedEntity.InheritanceStrategy is TablePerTypeStrategy && join.JoinedEntity.BaseMap != null)
             {
-                AddTPTParentJoinsForInclude(builder, join.JoinedEntity, join.Alias!);
+                AddTPTParentJoinsForInclude(builder, join.JoinedEntity, join.Alias!, true); // ← ZMIANA: true = useLeftJoin
             }
         }
 
@@ -228,7 +228,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                     var joinTable = includeJoin.Join.JoinedEntity.TableName;
                     var joinAlias = includeJoin.TableAlias; // Alias zdefiniowany w Include
 
-                    // ✅ POPRAWKA TPC: Budujemy warunek JOIN używając LOKALNEGO aliasu bieżącej tabeli
+                    //   POPRAWKA TPC: Budujemy warunek JOIN używając LOKALNEGO aliasu bieżącej tabeli
                     // Nie używamy includeJoin.Join.ParentAlias (który jest ustawiony globalnie),
                     // tylko lokalny alias tej konkretnej tabeli w UNION (np. "employees" lub "teachers")
                     var localJoinCondition = BuildJoinConditionForTPC(includeJoin.Join, alias, joinAlias);
@@ -414,7 +414,7 @@ public class SqliteSqlGenerator : ISqlGenerator
                 // TPT - konkretna klasa bez BaseMap (root lub standalone)
                 context.BaseTable = map.TableName;
                 
-                //   SPRAWDŹ CZY MA DZIECI (Student → StudentPart)
+                //   SPRAWDŹ CZY MA DZIECI (Student   StudentPart)
                 if (HasDerivedTypes(map))
                 {
                     context.PrimaryAlias = $"t{map.EntityType.Name}";
@@ -812,7 +812,7 @@ public class SqliteSqlGenerator : ISqlGenerator
             {
                 if (!string.IsNullOrEmpty(prop.ColumnName))
                 {
-                    // Sprawdź czy kolumna jest dziedziczona
+                    // Sprawdź czy kolumna jest dziedzicona
                     bool isInherited = false;
                     if (hierarchyMap.BaseMap != null)
                     {
@@ -831,9 +831,9 @@ public class SqliteSqlGenerator : ISqlGenerator
     }
 
     /// <summary>
-    /// Dodaje INNER JOIN do tabel rodziców dla TPT entity w Include.
+    /// Dodaje INNER JOIN lub LEFT JOIN do tabel rodziców dla TPT entity w Include.
     /// </summary>
-    private void AddTPTParentJoinsForInclude(SqlQueryBuilder builder, EntityMap map, string baseAlias)
+    private void AddTPTParentJoinsForInclude(SqlQueryBuilder builder, EntityMap map, string baseAlias, bool useLeftJoin = false)
     {
         var current = map.BaseMap;
         var childAlias = baseAlias;
@@ -843,7 +843,14 @@ public class SqliteSqlGenerator : ISqlGenerator
             var parentAlias = $"{baseAlias}_p{current.EntityType.Name}";
             var condition = $"{QuoteIdentifier(childAlias)}.{QuoteIdentifier(map.KeyProperty.ColumnName!)} = {QuoteIdentifier(parentAlias)}.{QuoteIdentifier(current.KeyProperty.ColumnName!)}";
 
-            builder.InnerJoin(QuoteIdentifier(current.TableName), QuoteIdentifier(parentAlias), condition);
+            if (useLeftJoin)
+            {
+                builder.LeftJoin(QuoteIdentifier(current.TableName), QuoteIdentifier(parentAlias), condition);
+            }
+            else
+            {
+                builder.InnerJoin(QuoteIdentifier(current.TableName), QuoteIdentifier(parentAlias), condition);
+            }
 
             childAlias = parentAlias;
             current = current.BaseMap;
@@ -927,13 +934,13 @@ public class SqliteSqlGenerator : ISqlGenerator
         // WHERE clause ma format: "tableAlias"."columnName" OPERATOR value
         // Musimy zamienić na: "columnName" OPERATOR value
         
-        // Regex pattern: "alias"."column" → "column"
-        // Przykład: "student"."semester" > @p0 → "semester" > @p0
+        // Regex pattern: "alias"."column"   "column"
+        // Przykład: "student"."semester" > @p0   "semester" > @p0
         
         var result = whereClause;
         
         // Znajdź wszystkie wystąpienia quoted identifier przed kropką
-        // Pattern: "anyAlias"."columnName" → "columnName"
+        // Pattern: "anyAlias"."columnName"   "columnName"
         result = System.Text.RegularExpressions.Regex.Replace(result, @"""[^""]+""\.", "", RegexOptions.IgnoreCase);
         
         return result;
@@ -1080,7 +1087,7 @@ public class SqliteSqlGenerator : ISqlGenerator
             hierarchy.Add(current);
             current = current.BaseMap;
         }
-        hierarchy.Reverse(); // Root → Derived
+        hierarchy.Reverse(); // Root   Derived
 
         var rootMap = hierarchy[0];
 

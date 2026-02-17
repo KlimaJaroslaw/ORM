@@ -91,7 +91,7 @@ public static class AutoTrackingDemo
 
         // Modyfikuj nazwę kategorii przez navigation property
         var oldCategoryName = productWithCategory.Category.Name;
-        Console.WriteLine($"\nModyfikuję Category.Name: \"{oldCategoryName}\" → \"Electronics & Gadgets\"");
+        Console.WriteLine($"\nModyfikuję Category.Name: \"{oldCategoryName}\"   \"Electronics & Gadgets\"");
         productWithCategory.Category.Name = "Electronics & Gadgets";
 
         // ⚠️ WAŻNE: Bez .Update() EntityState pozostaje Unchanged!
@@ -155,7 +155,7 @@ public static class AutoTrackingDemo
             var oldPrice = firstProduct.Price;
             var newPrice = 1299.99m;
 
-            Console.WriteLine($"\nModyfikuję {firstProduct.Name}.Price: ${oldPrice} → ${newPrice}");
+            Console.WriteLine($"\nModyfikuję {firstProduct.Name}.Price: ${oldPrice}   ${newPrice}");
             firstProduct.Price = newPrice;
 
             Console.WriteLine($"   EntityState (bez Update): {context.ChangeTracker.GetEntry(firstProduct)?.State}");

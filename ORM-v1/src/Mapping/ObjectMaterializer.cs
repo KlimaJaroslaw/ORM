@@ -388,7 +388,7 @@ namespace ORM_v1.Mapping
                 targetType = underlyingType;
             }
 
-            //   Obsługa SQLite Int64 → Int32 (i innych konwersji numerycznych)
+            //   Obsługa SQLite Int64   Int32 (i innych konwersji numerycznych)
             if (value is long longValue && (targetType == typeof(int) || targetType == typeof(int?)))
             {
                 return (int)longValue;
@@ -425,7 +425,7 @@ namespace ORM_v1.Mapping
 
         /// <summary>
         /// Wykrywa najbardziej konkretny typ pochodny dla TPT na podstawie niepustych kolumn.
-        /// Hierarchia Student → StudentPart: jeśli kolumny StudentPart nie są NULL, to zwróć StudentPart.
+        /// Hierarchia Student   StudentPart: jeśli kolumny StudentPart nie są NULL, to zwróć StudentPart.
         /// </summary>
         private Type? DetectMostDerivedTypeForTPT(IDataRecord record)
         {
@@ -462,7 +462,7 @@ namespace ORM_v1.Mapping
                     if (ordinal >= 0 && !record.IsDBNull(ordinal))
                     {
                         hasAnyValue = true;
-                        // Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - kolumna '{columnName}' ma wartość → MATCH!");
+                        // Console.WriteLine($"[DEBUG TPT]   {candidateMap.EntityType.Name} - kolumna '{columnName}' ma wartość   MATCH!");
                         break;
                     }
                 }

@@ -77,7 +77,7 @@ public class NavigationPropertiesDemo
         Console.WriteLine("\nScalar Properties:");
         foreach (var prop in blogMap.ScalarProperties)
         {
-            Console.WriteLine($"  - {prop.PropertyInfo.Name} → {prop.ColumnName}");
+            Console.WriteLine($"  - {prop.PropertyInfo.Name}   {prop.ColumnName}");
         }
     }
 
@@ -101,7 +101,7 @@ public class NavigationPropertiesDemo
         {
             var isFk = postMap.NavigationProperties.Any(n => n.ForeignKeyName == prop.PropertyInfo.Name);
             var marker = isFk ? " [FK]" : "";
-            Console.WriteLine($"  - {prop.PropertyInfo.Name} → {prop.ColumnName}{marker}");
+            Console.WriteLine($"  - {prop.PropertyInfo.Name}   {prop.ColumnName}{marker}");
         }
     }
 

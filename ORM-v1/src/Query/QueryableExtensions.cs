@@ -761,9 +761,8 @@ public static class QueryableExtensions
             if (columnName == null)
                 continue;
 
-            //   Dla TPT: znajdź z której tabeli pochodzi ta kolumna
-            string searchName;
-            string fallbackSearchName = columnName;
+            //   ZMIANA: Lista nazw do przeszukania (od najbardziej specyficznej do ogólnej)
+            var searchNames = new List<string>();
             
             if (!string.IsNullOrEmpty(tableAlias))
             {
@@ -774,63 +773,53 @@ public static class QueryableExtensions
                     var owningMap = FindOwningMapForColumn(map, columnName);
                     if (owningMap != null && owningMap != map)
                     {
-                        // Kolumna pochodzi z rodzica - użyj aliasu rodzica
+                        // Kolumna pochodzi z rodzica - użyj aliasu rodzica jako pierwszy
                         var parentAlias = $"t{owningMap.EntityType.Name}";
-                        searchName = $"{parentAlias}_{columnName}";
+                        searchNames.Add($"{parentAlias}_{columnName}");
+                        
+                        // Fallback: spróbuj z tableAlias (może być błędnie wygenerowane)
+                        searchNames.Add($"{tableAlias}_{columnName}");
                     }
                     else
                     {
                         // Kolumna pochodzi z tej klasy
-                        searchName = $"{tableAlias}_{columnName}";
+                        searchNames.Add($"{tableAlias}_{columnName}");
                     }
                 }
                 else
                 {
                     // Dla innych strategii (TPH, TPC, None)
-                    searchName = $"{tableAlias}_{columnName}";
-                }
-            }
-            else
-            {
-                searchName = columnName;
-            }
-
-            Console.WriteLine($"[DEBUG GetOrdinals] Property '{prop.PropertyInfo.Name}' (column '{columnName}') → searching for '{searchName}'");
-
-            // First try: search for aliased column name
-            for (int j = 0; j < reader.FieldCount; j++)
-            {
-                var fieldName = reader.GetName(j);
-
-                if (string.Equals(fieldName, searchName, StringComparison.OrdinalIgnoreCase))
-                {
-                    ordinals[i] = j;
-                    Console.WriteLine($"    FOUND at ordinal {j}");
-                    break;
+                    searchNames.Add($"{tableAlias}_{columnName}");
                 }
             }
             
-            //   FALLBACK: If aliased column not found and we have a table alias, 
-            // try searching for the unaliased column name (for queries without column aliases)
-            if (ordinals[i] == -1 && !string.IsNullOrEmpty(tableAlias))
+            // Ostateczny fallback: prosta nazwa kolumny (bez aliasu)
+            searchNames.Add(columnName);
+
+            Console.WriteLine($"[DEBUG GetOrdinals] Property '{prop.PropertyInfo.Name}' (column '{columnName}')   searching: {string.Join(", ", searchNames)}");
+
+            // Przeszukaj wszystkie warianty nazw
+            foreach (var searchName in searchNames)
             {
-                Console.WriteLine($"[DEBUG GetOrdinals]   Aliased column not found, trying fallback: '{fallbackSearchName}'");
                 for (int j = 0; j < reader.FieldCount; j++)
                 {
                     var fieldName = reader.GetName(j);
 
-                    if (string.Equals(fieldName, fallbackSearchName, StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(fieldName, searchName, StringComparison.OrdinalIgnoreCase))
                     {
                         ordinals[i] = j;
-                        Console.WriteLine($"    FOUND (fallback) at ordinal {j}");
+                        Console.WriteLine($"    FOUND '{searchName}' at ordinal {j}");
                         break;
                     }
                 }
+                
+                if (ordinals[i] >= 0)
+                    break; // Znaleziono, nie szukaj dalej
             }
             
             if (ordinals[i] == -1)
             {
-                Console.WriteLine($"  ❌ NOT FOUND!");
+                Console.WriteLine($"    NOT FOUND! Tried: {string.Join(", ", searchNames)}");
             }
         }
 

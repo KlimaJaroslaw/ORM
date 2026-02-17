@@ -90,12 +90,17 @@ namespace ORM.Tests.FinalTests
                 var stu2 = new Student { Name = "Diana", Major = "Math" };
                 var stu3 = new Student { Name = "Eve", Major = "CS" };
 
+                Assert.Equal(default, emp1.Id);
+
                 context.Set<Employee>().Add(emp1);
                 context.Set<Employee>().Add(emp2);
                 context.Set<Student>().Add(stu1);
                 context.Set<Student>().Add(stu2);
-                context.Set<Student>().Add(stu3);
+                context.Set<Person>().Add(stu3);
                 context.SaveChanges();
+
+                Assert.Equal(1, emp1.Id);
+                Assert.NotEqual(default, stu3.Id);
             }
 
             //Insert
@@ -250,6 +255,43 @@ namespace ORM.Tests.FinalTests
                 Assert.Equal("Bobby", bobEmployee.Name);
             }
 
+            //Classic Update & Delete
+            using (var context = new DbContext(dbConfig))
+            {
+                var employee1 = context.Set<Employee>().Include(x => x.Subjects).Where(x => x.Id == 1).ToList().First();
+                var student3 = context.Set<Student>().Find(3);
+                var subject1 = context.Set<Subject>().Find(1);
+                var studnetNone = context.Set<Student>().Find(999);
+
+                Assert.NotNull(employee1);
+                Assert.NotNull(student3);
+                Assert.Null(studnetNone);
+
+                employee1.Title = "Eng";
+                context.Set<Employee>().Update(employee1);
+                context.Set<Subject>().Remove(subject1);
+                context.SaveChanges();
+
+                var employee1After = context.Set<Employee>().Find(1);
+                var student3After = context.Set<Student>().Find(3);
+                var subject1After = context.Set<Subject>().Find(1);
+                Assert.NotNull(employee1After);
+                Assert.Equal("Eng", employee1After.Title);
+                Assert.NotNull(student3After);
+                Assert.Null(subject1After);
+            }
+
+            //Insert after deleteion
+            using (var context = new DbContext(dbConfig))
+            {
+                var employeeFirst = context.Set<Employee>().All().FirstOrDefault();
+                Assert.NotNull(employeeFirst);
+                var subNew = new Subject { Name = "Operating Systems", EmployeeId = employeeFirst.Id };
+                context.Set<Subject>().Add(subNew);
+                context.SaveChanges();
+                Assert.NotEqual(default, subNew.Id);
+            }
+
             //Summary
             using (var context = new DbContext(dbConfig))
             {
@@ -266,7 +308,73 @@ namespace ORM.Tests.FinalTests
                 Assert.Equal(2, subjects.Count);
 
                 var studentSubjects = context.Set<StudentSubject>().ToList();
-                Assert.Equal(4, studentSubjects.Count);
+                Assert.Equal(2, studentSubjects.Count);
+            }
+
+            //All Navigation
+            using (var context = new DbContext(dbConfig))
+            {
+                var EmployeesWithSubjects = context.Set<Employee>()
+                    .Include(e => e.Subjects)
+                    .ToList();
+                foreach (var emp in EmployeesWithSubjects)
+                {
+                    Assert.NotNull(emp.Subjects);
+                    foreach (var sub in emp.Subjects)
+                    {
+                        Assert.Equal(emp.Id, sub.EmployeeId);
+                    }
+                }
+            }
+
+            using (var context = new DbContext(dbConfig))
+            {
+
+                var SubjectsWithEmployees = context.Set<Subject>()
+                    .Include(s => s.Employee)
+                    .ToList();
+                foreach (var sub in SubjectsWithEmployees)
+                {
+                    Assert.NotNull(sub.Employee);
+                    Assert.Equal(sub.EmployeeId, sub.Employee.Id);
+                }
+            }
+
+            using (var context = new DbContext(dbConfig))
+            {
+                var StudentsWithSubjects = context.Set<Student>()
+                    .Include(s => s.StudentSubjects).ThenInclude(ss => ss.Subject)
+                    .ToList();
+                Assert.True(StudentsWithSubjects.Any(x => x.StudentSubjects != null));
+                foreach (var stu in StudentsWithSubjects)
+                {
+                    if (stu.StudentSubjects == null) continue;
+
+                    Assert.NotNull(stu.StudentSubjects);
+                    foreach (var ss in stu.StudentSubjects)
+                    {
+                        Assert.NotNull(ss.Subject);
+                        Assert.Equal(ss.SubjectId, ss.Subject.Id);
+                    }
+                }
+            }
+
+            using (var context = new DbContext(dbConfig))
+            {
+                var SubjectsWithStudents = context.Set<Subject>()
+                   .Include(s => s.StudentSubjects).ThenInclude(ss => ss.Student)
+                   .ToList();
+                Assert.True(SubjectsWithStudents.Any(x => x.StudentSubjects != null));
+                foreach (var sub in SubjectsWithStudents)
+                {
+                    if (sub.StudentSubjects == null) continue;
+                    Assert.NotNull(sub.StudentSubjects);
+                    foreach (var ss in sub.StudentSubjects)
+                    {
+                        Assert.NotNull(ss.Student);
+                        Assert.Equal(ss.StudentId, ss.Student.Id);
+                    }
+                }
             }
         }
         #endregion
