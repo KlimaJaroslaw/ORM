@@ -31,5 +31,23 @@ namespace ORM_v1.Mapping
         {
             return _maps.Values;
         }
+
+        public EntityMap? GetEntityMapByDiscriminator(Type rootType, string discriminator)
+        {
+            if (rootType == null) throw new ArgumentNullException(nameof(rootType));
+            if (string.IsNullOrWhiteSpace(discriminator)) return null;
+            foreach (var map in _maps.Values)
+            {
+                if (string.Equals(map.Discriminator, discriminator, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (rootType.IsAssignableFrom(map.EntityType))
+                    {
+                        return map;
+                    }
+                }
+            }
+
+            return null;
+        }
     }
 }

@@ -29,7 +29,7 @@ public static class BasicCrudDemo
             context.Database.EnsureCreated();
 
             // CREATE - Dodawanie nowych encji
-            Console.WriteLine("1. CREATE - Dodawanie nowych produkt�w:");
+            Console.WriteLine("1. CREATE - Dodawanie nowych produktów:");
             var laptop = new Product
             {
                 Name = "Laptop HP",
@@ -50,8 +50,8 @@ public static class BasicCrudDemo
             context.Products.Add(mouse);
             context.SaveChanges();
 
-            Console.WriteLine($"   ? Dodano laptop (ID: {laptop.Id})");
-            Console.WriteLine($"   ? Dodano mysz (ID: {mouse.Id})\n");
+            Console.WriteLine($"   Dodano laptop (ID: {laptop.Id})");
+            Console.WriteLine($"   Dodano mysz (ID: {mouse.Id})\n");
 
             // READ - Odczytywanie danych
             Console.WriteLine("2. READ - Wyszukiwanie produktu po ID:");
@@ -85,7 +85,7 @@ public static class BasicCrudDemo
                 Console.WriteLine($"   Usuwanie: {productToDelete.Name}");
                 context.Products.Remove(productToDelete);
                 context.SaveChanges();
-                Console.WriteLine($"   ? Produkt usuni�ty\n");
+                Console.WriteLine($"   Produkt usunięty\n");
             }
 
             // Weryfikacja
@@ -98,6 +98,6 @@ public static class BasicCrudDemo
             }
         }
 
-        Console.WriteLine("\n=== CRUD Demo zako�czone ===");
+        Console.WriteLine("\n=== CRUD Demo zakończone ===");
     }
 }

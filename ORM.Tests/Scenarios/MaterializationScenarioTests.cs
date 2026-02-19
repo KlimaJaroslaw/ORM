@@ -11,11 +11,15 @@ namespace ORM.Tests.Scenarios
         [Fact]
         public void Should_Materialize_UserTestEntity_From_FakeDataRecord()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+
+            IReadOnlyDictionary<Type, EntityMap> maps = director.Construct(typeof(UserTestEntity).Assembly);
+
             var map = maps[typeof(UserTestEntity)];
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, new MetadataStore(maps));
 
             var record = new FakeDataRecord(new Dictionary<string, object?>
             {
@@ -34,7 +38,7 @@ namespace ORM.Tests.Scenarios
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            var entity = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+            var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
 
 
             Assert.Equal(10, entity.Id);

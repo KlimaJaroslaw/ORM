@@ -423,3 +423,13 @@ obj/
 riderModule.iml
 /_ReSharper.Caches/
 /FIX_INVALIDCASTEXCEPTION_INT64_TO_INT32.md
+
+
+demo.db
+/ORM-v1/ORM_DOCUMENTATION
+
+LiveDemo/bin/
+LiveDemo/obj/
+LiveDemo/school.db
+
+notatki/

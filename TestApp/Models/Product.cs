@@ -18,6 +18,6 @@ public class Product
     [Column("category_id")]
     public int CategoryId { get; set; }
 
-    [Ignore]
+    [ForeignKey("CategoryId")]
     public Category? Category { get; set; }
 }

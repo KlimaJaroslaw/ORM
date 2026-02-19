@@ -17,6 +17,6 @@ public class Order
     [Column("total_amount")]
     public decimal TotalAmount { get; set; }
 
-    [Ignore]
+    [ForeignKey("CustomerId")]
     public Customer? Customer { get; set; }
 }

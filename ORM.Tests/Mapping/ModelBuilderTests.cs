@@ -10,8 +10,10 @@ namespace ORM.Tests.Mapping
         [Fact]
         public void ModelBuilder_Should_Find_Entity_And_Create_Map()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            var maps = director.Construct(typeof(UserTestEntity).Assembly);
 
             Assert.True(maps.ContainsKey(typeof(UserTestEntity)));
 
@@ -24,8 +26,10 @@ namespace ORM.Tests.Mapping
         [Fact]
         public void ModelBuilder_Should_Detect_Primary_Key()
         {
-            var builder = new ModelBuilder(typeof(UserTestEntity).Assembly);
-            var maps = builder.BuildModel(new PascalCaseNamingStrategy());
+            INamingStrategy naming = new PascalCaseNamingStrategy();
+            IModelBuilder builder = new ReflectionModelBuilder(naming);
+            var director = new ModelDirector(builder);
+            var maps = director.Construct(typeof(UserTestEntity).Assembly);
 
             var map = maps[typeof(UserTestEntity)];
 

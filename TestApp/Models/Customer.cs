@@ -23,6 +23,8 @@ public class Customer
 
     [Ignore]
     public string FullName => $"{FirstName} {LastName}";
+    // Navigation property - zamówienia klienta
+    public List<Order> Orders { get; set; } = new();
 }
 
 public enum CustomerStatus

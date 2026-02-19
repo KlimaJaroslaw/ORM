@@ -30,7 +30,7 @@ namespace ORM.Tests.Scenarios
                 { "LastName", "Torvalds" }
             });
 
-            var materializer = new ObjectMaterializer(map);
+            var materializer = new ObjectMaterializer(map, store);
             // var entity = (UserTestEntity)materializer.Materialize(record, map);
 
             int[] ordinals = new int[map.ScalarProperties.Count];
@@ -41,7 +41,7 @@ namespace ORM.Tests.Scenarios
                 ordinals[i++] = record.GetOrdinal(prop.ColumnName!);
             }
 
-            var entity = (UserTestEntity)materializer.Materialize(record, map, ordinals);
+            var entity = (UserTestEntity)materializer.Materialize(record, ordinals);
 
 
             Assert.Equal(42, entity.Id);

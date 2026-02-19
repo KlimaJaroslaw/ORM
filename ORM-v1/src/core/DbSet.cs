@@ -31,6 +31,10 @@ public class DbSet<T> : IQueryable<T> where T : class
 
     public IEnumerator<T> GetEnumerator()
     {
+        if (_expression is ConstantExpression && _context != null)
+        {
+            return _context.SetInternal<T>().GetEnumerator();
+        }
         return Provider.Execute<IEnumerable<T>>(Expression).GetEnumerator();
     }
 
@@ -59,13 +63,12 @@ public class DbSet<T> : IQueryable<T> where T : class
         _context.ChangeTracker.Track(entity, EntityState.Deleted);
     }
 
-    // Proste Find po ID
+
     public T? Find(object id)
     {
         return _context.Find<T>(id);
     }
 
-    // Metoda pomocnicza do pobierania wszystkich (dla testów, póki nie ma LINQ)
     public IEnumerable<T> All()
     {
         return _context.SetInternal<T>();
